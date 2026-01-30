@@ -1,14 +1,13 @@
-# Bean Jar - Social Achievement Tracking
+# Base convex-RN-clerk-hooks project
 
-Bean Jar is a social app where you add a bean to your jar every time you accomplish any small thing in your day, and all your friends can see your most recent bean.
+This repository is a **base project** for building React Native apps with:
 
-## 🌱 Concept
+- **Expo**
+- **Convex** backend
+- **Clerk** authentication
+- Custom hooks for Convex and Clerk integration
 
-- **Add beans** for daily accomplishments (big or small!)
-- **Share your progress** with friends
-- **See what your friends** are accomplishing
-- **Build momentum** through visual progress tracking
-- **Stay motivated** by celebrating small wins
+---
 
 ## Requirements
 
@@ -17,13 +16,15 @@ Bean Jar is a social app where you add a bean to your jar every time you accompl
 - **Git**
 - Expo tooling will be installed as part of `npm install`.
 
-## Getting Started
+---
+
+## Getting started (using this repo directly)
 
 1. **Clone the repo**
 
    ```bash
-   git clone https://github.com/malachyfernandez/BeanJar.git
-   cd BeanJar
+   git clone https://github.com/malachyfernandez/convex-RN-clerk-hooks-project.git
+   cd convex-RN-clerk-hooks-project
    ```
 
 2. **Install dependencies**
@@ -62,37 +63,63 @@ Bean Jar is a social app where you add a bean to your jar every time you accompl
 
    Follow the Expo CLI instructions in your terminal to open on your target platform.
 
-## Tech Stack
+---
 
-- **Expo** - React Native development platform
-- **Convex** - Backend database and real-time sync
-- **Clerk** - Authentication and user management
-- **TypeScript** - Type-safe development
-- **Tailwind CSS** - Styling with NativeWind
-- **Custom hooks** - Seamless Convex and Clerk integration
+## Using this as a **base** for a new project
 
-## Features
+Whenever you want to start a new app based on this setup:
 
-- ✅ User authentication with Clerk
-- ✅ Real-time data sync with Convex
-- ✅ Bean tracking and counting
-- ✅ Social feed to see friends' beans
-- ✅ Responsive design for mobile and web
+1. **Clone into a new folder**
 
-## Contributing
+   ```bash
+   git clone https://github.com/malachyfernandez/convex-RN-clerk-hooks-project.git my-new-app
+   cd my-new-app
+   ```
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. **(Optional but recommended) Remove this repo's git history and start fresh**
 
-## License
+   ```bash
+   rm -rf .git
+   git init
+   git add .
+   git commit -m "Initial commit for my-new-app"
+   ```
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+   At this point, `my-new-app` is its **own** git repository, separate from the base.
+
+3. **Install dependencies and run**
+
+   ```bash
+   npm install
+   npm run start    # or npm run android / ios / web
+   ```
+
+4. **(Optional) Create a new GitHub repo for the new app**
+
+   - Create a new, empty repo on GitHub.
+   - Then connect your local project to it:
+
+     ```bash
+     git remote add origin https://github.com/YOUR_USERNAME/YOUR_NEW_REPO.git
+     git branch -M main
+     git push -u origin main
+     ```
 
 ---
 
-Built with ❤️ using React Native, Expo, Convex, and Clerk.
+## Project identity / naming
+
+Internally, the project uses the technical name:
+
+- `base-convex-rn-clerk-hooks`
+
+This is used for things like `package.json` and the Expo slug. 
+
+If you create a new project from this base, you can edit:
+
+- `package.json` → `name`
+- `app.json` → `expo.name`, `expo.slug`, and `expo.ios.bundleIdentifier`
+
+To match your new app's branding.
 
 

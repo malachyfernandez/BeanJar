@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Bean Jar",
-    "slug": "bean-jar",
-    "scheme": "bean-jar-app",
+    "name": "base-convex-rn-clerk-hooks",
+    "slug": "base-convex-rn-clerk-hooks",
+    "scheme": "my-convex-app",
     "version": "1.0.0",
     "web": {
       "favicon": "./assets/favicon.png"
@@ -26,7 +26,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.beanjar.app"
+      "bundleIdentifier": "com.anonymous.base-convex-rn-clerk-hooks"
     },
     "android": {
       "adaptiveIcon": {
