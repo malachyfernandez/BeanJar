@@ -5,36 +5,14 @@ import {
     withTiming,
     withDelay,
     withSequence,
-    withSpring
+    withSpring,
+    cancelAnimation
 } from 'react-native-reanimated';
 import { runOnJS } from 'react-native-worklets';
 import ListItemScrolling from './ListItemScrolling';
 
-const TaskList = () => {
+const TaskList = ({ isAnimationEnabled }: { isAnimationEnabled: boolean }) => {
     const scrollAmount = useSharedValue(0);
-
-    const startAnimationLoop = () => {
-        // 1. Calculate the NEW target (current position - 1)
-        const nextTarget = Math.floor(scrollAmount.value) - 1;
-
-        scrollAmount.value = withSequence(
-
-            withSpring(nextTarget, { damping: 80 }),
-
-            // 3. Wait 1 second, then trigger the loop again
-            withDelay(1000, withTiming(nextTarget, { duration: 0 }, (finished) => {
-                if (finished) {
-                    runOnJS(startAnimationLoop)();
-                }
-            }))
-        );
-    };
-
-
-    useEffect(() => {
-        startAnimationLoop();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
     const listItems = [
 
@@ -124,32 +102,56 @@ const TaskList = () => {
 
     ];
 
-    
+
     const [loopedListItems, setLoopedListItems] = useState(
         listItems.slice(0, 5)
     );
 
+    const [MainItemIndex, setMainItemIndex] = useState(1);
+
     useEffect(() => {
-        
+        if (!isAnimationEnabled) {
+            return;
+        }
+
         const intervalId = setInterval(() => {
-            setLoopedListItems((prev) => [...prev,listItems[prev.length % listItems.length]] ); 
-        }, 1000);
+            setLoopedListItems((prev) => [...prev, listItems[prev.length % listItems.length]]);
+            scrollAmount.value = withSpring((-1 * MainItemIndex), { damping: 80 });
+            setMainItemIndex((prev) => prev + 1);
+        }, 2000);
 
 
         return () => clearInterval(intervalId);
-    }, []); 
+    }, [isAnimationEnabled, MainItemIndex]);
+
+    const isTextInInput = !isAnimationEnabled;
+
+    const itemOpacity = useSharedValue(1);
+
+    useEffect(() => {
+        itemOpacity.value = withSpring(isTextInInput ? 0 : 1, {
+            damping: 2000,
+            mass: 100,
+        });
+    }, [isTextInInput]);
 
     return (
         <View className='absolute'>
             <View className='w-[70vw] h-12 px-4 justify-center'>
-                {loopedListItems.map((item, index) => (
-                    <ListItemScrolling
-                        key={index}
-                        scrollAmount={scrollAmount}
-                        offset={index}
-                        text={item}
-                    />
-                ))}
+                {loopedListItems.map((item, index) => {
+                    const isMainItem = MainItemIndex === index;
+                    return (
+                        <ListItemScrolling
+                            key={index}
+                            scrollAmount={scrollAmount}
+                            offset={index}
+                            text={(isMainItem && isTextInInput) ?
+                                "" :
+                                item}
+                            opacity={itemOpacity}
+                        />
+                    );
+                })}
             </View>
         </View>
     );

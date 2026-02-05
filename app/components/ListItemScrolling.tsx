@@ -7,22 +7,27 @@ interface ListItemScrollingProps {
   scrollAmount: SharedValue<number>;
   offset?: number;
   text?: string;
+  opacity: SharedValue<number>;
 }
 
-const ListItemScrolling = ({ scrollAmount, offset = 0, text = "i returned my library pen" }: ListItemScrollingProps) => {
+const ListItemScrolling = ({ scrollAmount, offset = 0, text = "i returned my library pen", opacity }: ListItemScrollingProps) => {
 
   const dynamicStyle = useAnimatedStyle(() => {
     const currentScrollAmount = scrollAmount.value + offset;
     const distance = Math.abs(currentScrollAmount - 1);
     
-    const scale = Math.max(0.2, 1 - distance * 0.2);
-    const opacity = Math.max(0.05, 0.6 - distance * 0.25);
+    let scale = 1 - distance * 0.2;
+    if (scale < .5) {
+      scale = 0;
+    }
+    const opacityByPosition = 0.6 - distance * 0.25;
+    const newOpacity = Math.min(opacityByPosition, opacity.value);
     const margin = Math.max(0, 16 - distance * 8);
     const translateY = (currentScrollAmount - 1) * 40;
 
     return {
       margin: margin,
-      opacity: opacity,
+      opacity: newOpacity,
       transformOrigin: ['0%', '50%', 0],
       transform: [
         { translateY: translateY },
