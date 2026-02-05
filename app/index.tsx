@@ -10,14 +10,13 @@ import { useGlobalVariable } from "../hooks/useGlobalVariable";
 import { useSyncUserData } from "../hooks/useSyncUserData";
 import { useSearch } from "../hooks/useSearch";
 
-import ChangeCountButton from "./components/ChangeCountButton";
+
 import AuthButton from "./components/AuthButton";
-import DigitalScore from "./components/DigitalScore";
+
 import ContainerCol from "./components/ContainerCol";
-import ContainerRow from "./components/ContainerRow";
-import ListSeparator from "./components/ListSeparator";
-import SearchItemCard from "./components/SearchItemCard";
-import SearchList from "./components/SearchList";
+
+import BeanContainer from "./components/BeanContainer";
+
 
 // Warm up the browser (required for Android reliability)
 export const useWarmUpBrowser = () => {
@@ -65,6 +64,7 @@ export default function HomeScreen() {
 
 
   const [searchText, setSearchText] = useState("");
+  const [beanText, setBeanText] = useState("");
   const userSearchArray = useSearch<UserData>(searchText, "userData")
 
   // Keyboard listener
@@ -96,7 +96,7 @@ export default function HomeScreen() {
   }, [globalScore, setGlobalScore]);
 
   return (
-    <SafeAreaView className="flex-1 bg-black">
+    <SafeAreaView className="flex-1 bg-slate-900 items-center justify-center">
       <ContainerCol className="w-full items-center absolute top-20 z-10">
         <TextInput
           className="w-[90vw] h-12 bg-gray-800 rounded-full px-4 text-white text-xl"
@@ -105,50 +105,14 @@ export default function HomeScreen() {
           value={searchText}
           onChangeText={setSearchText}
         />
-        <SearchList data={userSearchArray}/>
+
       </ContainerCol>
 
-      <ScrollView className="pt-20 mt-2" contentContainerStyle={{ alignItems: 'center', paddingBottom: 40 }}>
-
-
-
-        <SignedIn>
-          <View>
-            {userData?.name ?
-              (<Text className="text-white text-2xl">{`Welcome ${userData?.name}!`}</Text>) :
-              (<Text className="text-white text-2xl">Welcome!</Text>)
-            }
-          </View>
-        </SignedIn>
-
-        <DigitalScore score={globalScore} />
-
-        <ContainerRow>
-          <ChangeCountButton count={globalScore} setCount={setGlobalScore} amount={1} label="+" />
-          <ChangeCountButton count={globalScore} setCount={setGlobalScore} amount={-1} label="-" />
-        </ContainerRow>
+      
 
         <SignedIn>
 
-          <DigitalScore score={userScore} />
-
-          <ContainerRow>
-            <ChangeCountButton count={userScore} setCount={setUserScore} amount={1} label="+" />
-            <ChangeCountButton count={userScore} setCount={setUserScore} amount={-1} label="-" />
-          </ContainerRow>
-
-
-
-          {/* <TouchableOpacity className="bg-blue-600 px-8 py-4 rounded-full active:opacity-80 mb-4 min-w-32 items-center">
-            <Text className="text-white text-xl font-bold">{JSON.stringify(userSearchArray)}</Text>
-          </TouchableOpacity> */}
-
-          {/* Search input */}
-
-
-          <TouchableOpacity onPress={() => signOut()} className="mt-8">
-            <Text className="text-gray-500">Log Out</Text>
-          </TouchableOpacity>
+          <BeanContainer beanText={beanText} setBeanText={setBeanText} />
 
         </SignedIn>
 
@@ -167,7 +131,6 @@ export default function HomeScreen() {
 
 
         </SignedOut>
-      </ScrollView>
     </SafeAreaView >
   );
 }

@@ -1,25 +1,4 @@
-// import "../polyfills"; // Import polyfills before Convex
-// import { ConvexProvider, ConvexReactClient } from "convex/react";
-// import { Stack } from "expo-router";
-// import "../global.css"; // Import your Tailwind CSS here
 
-// // Initialize Convex
-// const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!);
-
-// export default function RootLayout() {
-//   return (
-
-//     <ConvexProvider client={convex}>
-
-//       <Stack>
-
-//         <Stack.Screen name="index" options={{ headerShown: false }} />
-
-
-//       </Stack>
-//     </ConvexProvider>
-//   );
-// }
 
 import "../polyfills";
 import { ClerkProvider, ClerkLoaded, useAuth } from "@clerk/clerk-expo";

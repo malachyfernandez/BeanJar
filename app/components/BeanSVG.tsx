@@ -1,0 +1,34 @@
+import React from 'react';
+import { Svg, Path } from 'react-native-svg';
+import { useWindowDimensions } from 'react-native';
+
+interface BeanSVGProps {
+    color?: string;
+    size?: number;
+    sizeVW?: number;
+    className?: string;
+}
+
+const BeanSVG = ({ color = '#0284C7', size, sizeVW, className }: BeanSVGProps) => {
+    const { width: screenWidth } = useWindowDimensions();
+    const finalSize = sizeVW ? (sizeVW / 100) * screenWidth : (size || 200);
+    
+    const scale = finalSize / 348; 
+    return (
+        <Svg 
+            width={finalSize} 
+            height={finalSize * (244 / 348)} 
+            viewBox="0 0 348 244" 
+            fill="none" 
+            className={className}
+        >
+            <Path 
+                d="M232.547 1.05417C192.747 6.27641 173.584 58.5006 144.102 58.5006C114.62 58.5006 60.0793 45.4445 26.1753 76.779C-7.72864 108.114 -12.1509 185.144 33.5458 215.173C71.8719 240.358 181.078 261.666 248.762 221.701C310.674 185.144 344.901 153.768 347.526 89.8353C350.474 18.0271 282.666 -5.52201 232.547 1.05417Z" 
+                fill={color}
+            />
+        </Svg>
+    );
+};
+
+export default BeanSVG;
+
