@@ -34,8 +34,17 @@ const BeanContainer = ({ className, beanText, setBeanText }: BeanContainerProps)
 
             </View>
 
-            <View className='absolute' pointerEvents="none">
+            <View
+                className='absolute border-[#0F172A] border-[20px]'
+                pointerEvents="none">
                 <BeanCoverSVG color="#0F172A" sizeVW={91} />
+            </View>
+
+            {/* fake duplaicate element to hide odd rendering issue on edge of border (90 VW instead of 91 fills the 1px gap) */}
+            <View
+                className='absolute border-[#0F172A] border-[20px]'
+                pointerEvents="none">
+                <BeanCoverSVG color="#FFF0" sizeVW={90} />
             </View>
         </View>
 
