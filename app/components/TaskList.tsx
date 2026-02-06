@@ -16,89 +16,89 @@ const TaskList = ({ isAnimationEnabled }: { isAnimationEnabled: boolean }) => {
 
     const listItems = [
 
-        "i drank a glass of water!",
+        "I drank a glass of water!",
 
-        "i got out of bed!",
+        "I got out of bed!",
 
-        "i made the bed!",
+        "I made the bed!",
 
-        "i went outside for fresh air!",
+        "I went outside for fresh air!",
 
-        "i brushed my teeth!",
+        "I brushed my teeth!",
 
-        "i ate a vegetable!",
+        "I ate a vegetable!",
 
-        "i put on real clothes!",
+        "I put on real clothes!",
 
-        "i took the stairs!",
+        "I took the stairs!",
 
-        "i texted a friend back!",
+        "I texted a friend back!",
 
-        "i washed my face!",
+        "I washed my face!",
 
-        "i stretched for two minutes!",
+        "I stretched for two minutes!",
 
-        "i watered the plants!",
+        "I watered the plants!",
 
-        "i saved my work!",
+        "I saved my work!",
 
-        "i wrote a to-do list!",
+        "I wrote a to-do list!",
 
-        "i showed up to class!",
+        "I showed up to class!",
 
-        "i showed up to work!",
+        "I showed up to work!",
 
-        "i cooked a meal at home!",
+        "I cooked a meal at home!",
 
-        "i put the phone down!",
+        "I put the phone down!",
 
-        "i read a book!",
+        "I read a book!",
 
-        "i took my vitamins!",
+        "I took my vitamins!",
 
-        "i put the laundry away!",
+        "I put the laundry away!",
 
-        "i emptied the dishwasher!",
+        "I emptied the dishwasher!",
 
-        "i took the trash out!",
+        "I took the trash out!",
 
-        "i replied to that email!",
+        "I replied to that email!",
 
-        "i asked for help!",
+        "I asked for help!",
 
-        "i said no when i needed to!",
+        "I said no when I needed to!",
 
-        "i stopped eating when i was full!",
+        "I stopped eating when I was full!",
 
-        "i washed my hair!",
+        "I washed my hair!",
 
-        "i cleaned off my desk!",
+        "I cleaned off my desk!",
 
-        "i turned my camera on for the meeting!",
+        "I turned my camera on for the meeting!",
 
-        "i paid a bill on time!",
+        "I paid a bill on time!",
 
-        "i matched all my socks!",
+        "I matched all my socks!",
 
-        "i pumped gas before the light came on!",
+        "I pumped gas before the light came on!",
 
-        "i returned my library book!",
+        "I returned my library book!",
 
-        "i cancelled that subscription!",
+        "I cancelled that subscription!",
 
-        "i didn't buy the thing i didn't need!",
+        "I didn't buy the thing I didn't need!",
 
-        "i checked my bank account balance!",
+        "I checked my bank account balance!",
 
-        "i apologized!",
+        "I apologized!",
 
-        "i forgave myself!",
+        "I forgave myself!",
 
-        "i unfollowed an account that made me feel bad!",
+        "I unfollowed an account that made me feel bad!",
 
-        "i cleaned the hair out of the drain!",
+        "I cleaned the hair out of the drain!",
 
-        "i updated my passwords!",
+        "I updated my passwords!",
 
     ];
 

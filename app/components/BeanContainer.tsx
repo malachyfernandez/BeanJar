@@ -1,6 +1,7 @@
 import React, { PropsWithChildren } from 'react';
-import { Text, View } from 'react-native';
+import { Animated, Text, TouchableOpacity, View } from 'react-native';
 import BeanSVG from './BeanSVG';
+import CameraSVG from './CameraSVG';
 import PoppinsText from './PoppinsText';
 import PoppinsTextInput from './PoppinsTextInput';
 import TaskList from './TaskList';
@@ -34,6 +35,8 @@ const BeanContainer = ({ className, beanText, setBeanText }: BeanContainerProps)
 
             </View>
 
+
+
             <View
                 className='absolute border-[#0F172A] border-[20px]'
                 pointerEvents="none">
@@ -46,6 +49,17 @@ const BeanContainer = ({ className, beanText, setBeanText }: BeanContainerProps)
                 pointerEvents="none">
                 <BeanCoverSVG color="#FFF0" sizeVW={90} />
             </View>
+
+            <Animated.View
+                className='absolute w-full flex items-center justify-center'
+            >
+                <TouchableOpacity
+                    className="w-[70vw] h-16 flex items-center justify-center rounded-[15px] border border-white/30 bg-[#0f1627bf] flex-row gap-2"
+                >
+                    <CameraSVG />
+                    <PoppinsText weight="bold">HELLO</PoppinsText>
+                </TouchableOpacity>
+            </Animated.View>
         </View>
 
 
