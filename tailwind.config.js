@@ -7,7 +7,12 @@ module.exports = {
 
   presets: [require('nativewind/preset')],
   theme: {
-    extend: {},
+    extend: {
+      // Add custom utility class "l" for red background
+      colors: {
+        'l': '#ef4444' // red-500
+      }
+    },
   },
   plugins: [],
 };
