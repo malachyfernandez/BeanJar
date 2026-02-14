@@ -1,14 +1,16 @@
-import React, { PropsWithChildren, useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
-import Animated, { Easing, FadeInLeft, FadeInRight, FadeOut, FadeOutDown, FadeOutLeft, FadeOutRight } from 'react-native-reanimated';
-import BeanSVG from './BeanSVG';
-import CameraSVG from './CameraSVG';
-import SendSVG from './SendSVG';
+import React, { PropsWithChildren, useEffect, useRef, useState } from 'react';
+import { View } from 'react-native';
+import Animated, { FadeInDown, FadeInRight, FadeOutDown, FadeOutRight, FadeOutUp, useSharedValue, withSpring } from 'react-native-reanimated';
+import Bean from './Bean';
+import TypingButtons from './TypingButtons';
+import SettingsButtons from './SettingsButtons';
+import PrivacyDropdown from './PrivacyDropdown';
 import PoppinsText from './PoppinsText';
-import PoppinsTextInput from './PoppinsTextInput';
-import TaskList from './TaskList';
-import BeanCoverSVG from './BeanCoverSVG';
+import SpeachBubbleArmSVG from './SpeachBubbleArmSVG';
 import AppButton from './AppButton';
+import BackArrowSVG from './BackArrowSVG';
+import { translateXsAnimation, translateYsAnimation, rotationsAnimation } from './BeanAnimations';
+import Jar from './Jar';
 
 interface BeanContainerProps extends PropsWithChildren {
     className?: string;
@@ -16,129 +18,234 @@ interface BeanContainerProps extends PropsWithChildren {
     setBeanText: (text: string) => void;
 }
 
-type ScreenState = "typing" | "settings";
+type ScreenState = "typing" | "settings" | "falling" | "lead-in-to-animation" | "animating";
+
+type BeanPrivacy = "public" | "private";
+
 
 const BeanContainer = ({ className, beanText, setBeanText }: BeanContainerProps) => {
+    const TextStyle = {
+        primary: "text-xl",
+        secondary: "text-md opacity-50"
+    } as const;
 
     const [screenState, setScreenState] = useState<ScreenState>("typing");
+
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+    const [beanPrivacy, setBeanPrivacy] = useState<BeanPrivacy>("public");
+
+    const scale = useSharedValue(1);
+    const translateX = useSharedValue(0);
+    const translateY = useSharedValue(0);
+    const rotation = useSharedValue(0);
+    const cameraY = useSharedValue(0);
+
+    const rotationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    useEffect(() => {
+        if (screenState === "typing") {
+            translateX.value = withSpring(0, { damping: 20, stiffness: 10 });
+            translateY.value = withSpring(0, { damping: 20, stiffness: 10 });
+            scale.value = withSpring(1, { damping: 20, stiffness: 10 });
+        } else if (screenState === "settings") {
+            translateX.value = withSpring(0, { damping: 20, stiffness: 10 });
+            translateY.value = withSpring(-100, { damping: 20, stiffness: 10 });
+            scale.value = withSpring(1, { damping: 20, stiffness: 10 });
+            rotation.value = withSpring(0, { damping: 20, stiffness: 10 });
+        }
+        if (screenState === "falling") {
+            // translateY.value = withSpring(0, { damping: 20, stiffness: 10 });
+            scale.value = withSpring((.7), { duration: 400 });
+
+            rotationTimeoutRef.current = setTimeout(() => {
+                setScreenState("lead-in-to-animation");
+            }, 1000);
+        } else {
+            clearTimeout(rotationTimeoutRef.current || undefined);
+        }
+        if (screenState === "lead-in-to-animation") {
+            scale.value = withSpring((.3), { duration: 100 });
+            translateY.value = withSpring(-2000, { duration: 400 });
+
+            timeoutRef.current = setTimeout(() => {
+                setScreenState("animating");
+            }, 1000);
+        } else {
+            clearTimeout(timeoutRef.current || undefined);
+        }
+
+        if (screenState === "animating") {
+            cameraY.value = withSpring(-800, { duration: 4000 });
+        } else {
+            cameraY.value = withSpring(0, { duration: 400 });
+        }
+
+
+        return () => {
+            clearTimeout(rotationTimeoutRef.current || undefined);
+        };
+    }, [screenState]);
+
+    const intervalIndex = useRef<number>(0);
+
+
+    const animationFrameDuration = 40;
+
+    const animationScale = 70;
+
+    const startingAnimationIndex = 50;
+
+
+    //Animation frame-by-frame
+
+    useEffect(() => {
+        if (!(screenState === "animating")) {
+            intervalIndex.current = startingAnimationIndex;
+            return;
+        }
+
+
+
+        const intervalId = setInterval(() => {
+            intervalIndex.current++;
+
+
+            const flippedTranslateY = -1 * translateYsAnimation[intervalIndex.current];
+            const finalTranslateY = flippedTranslateY * animationScale;
+
+
+            const adjustedTranslateX = translateXsAnimation[intervalIndex.current] * animationScale
+
+            const flippedRotation = -1 * rotationsAnimation[intervalIndex.current]
+            const adjustedRotation = flippedRotation * 27 + 100
+
+            // console.log(`intervalIndex: ${intervalIndex.current}`);
+            // console.log(`translateYsAnimation: ${finalTranslateY}`);
+            // console.log(`translateXsAnimation: ${adjustedTranslateX}`);
+            // console.log(`rotationsAnimation: ${adjustedRotation}`);
+
+
+            const isAnimationComplete = (isNaN(finalTranslateY) || isNaN(adjustedTranslateX) || isNaN(adjustedRotation))
+
+
+            // console.log(`isAnimationComplete: ${isAnimationComplete}`);
+            if (isAnimationComplete) {
+                clearInterval(intervalId)
+                return;
+            }
+
+
+            translateY.value = withSpring((finalTranslateY - cameraY.value), { duration: animationFrameDuration });
+            // console.log(`y: ${finalTranslateY}`);
+
+            translateX.value = withSpring(adjustedTranslateX, { duration: animationFrameDuration });
+            // console.log(`x: ${adjustedTranslateX}`);
+
+            rotation.value = withSpring(adjustedRotation, { duration: animationFrameDuration });
+            // console.log(`rotation: ${adjustedRotation}`);
+
+        }, animationFrameDuration);
+
+
+        return () => clearInterval(intervalId);
+    }, [screenState, intervalIndex]);
+
+
 
     return (
         <View className={`w-[100vw] h-[100vw] flex items-center justify-center ${className}`}>
 
-            <View className='absolute'>
-                <BeanSVG color="#BE185D" sizeVW={80} />
+            <View
+                className="absolute w-full items-center justify-center"
+                pointerEvents="box-none"
+            >
+                <Jar
+                    svg="back-jar"
+                    screenState={screenState}
+                    cameraY={cameraY}
+                />
             </View>
 
-            <TaskList isAnimationEnabled={(beanText === "")} />
-            <View className='absolute'>
-                {screenState == "typing" ?
-                <Animated.View
-                    exiting={FadeOut}
-                >
-                    <PoppinsTextInput
-                        className="w-[70vw] h-14 rounded-md px-4 text-white text-xl border border-[#fff9]"
-                        weight="bold"
-                        placeholderTextColor="#FFffFF99"
-                        value={beanText}
-                        onChangeText={setBeanText}
+            <Bean
+                screenState={screenState}
+                beanText={beanText}
+                setBeanText={setBeanText}
+                scale={scale}
+                translateX={translateX}
+                translateY={translateY}
+                rotation={rotation}
+            />
+
+            <View
+                className="absolute w-full items-center justify-center"
+                pointerEvents="box-none"
+            >
+                <Jar
+                    svg="front-jar"
+                    screenState={screenState}
+                    cameraY={cameraY}
+                />
+            </View>
+
+            <View
+                className="absolute w-full items-center justify-center"
+                pointerEvents="box-none"
+            >
+
+                {(screenState === "typing") && (
+                    <TypingButtons
+                        beanText={beanText}
+                        setScreenState={setScreenState}
                     />
-                </Animated.View>
-                    :
-                    <View
-                        className="w-[70vw] h-14 rounded-md px-4 text-white text-xl border border-[#fff0] flex justify-center"
-                    >
-                        <PoppinsText
-                            className='text-xl'
-                            weight="bold"
-                        >{beanText}</PoppinsText>
-                    </View>
-                }
-            </View>
+                )}
 
 
-
-            <View
-                className='absolute border-[#0F172A] border-[20px]'
-                pointerEvents="none">
-                <BeanCoverSVG color="#0F172A" sizeVW={91} />
-            </View>
-
-            {/* fake duplaicate element to hide odd rendering issue on edge of border (90 VW instead of 91 fills the 1px gap) */}
-            <View
-                className='absolute border-[#0F172A] border-[20px]'
-                pointerEvents="none">
-                <BeanCoverSVG color="#FFF0" sizeVW={90} />
-            </View>
-
-
-            {(screenState == "typing") ?
-                (beanText ?
+                {(screenState === "settings" || screenState === "falling") && (
                     <Animated.View
-                        className='absolute flex-row flex items-center justify-center mt-[10rem] w-[85vw] gap-4'
-                        exiting={FadeOutLeft}
+                        key="settings-buttons"
+                        entering={FadeInRight}
+                        exiting={FadeOutRight}
+                        className="absolute w-[100vw] h-[100vw] items-center justify-center"
                     >
-                        <Animated.View className="flex-1" entering={FadeInLeft.duration(300)}>
-                            <AppButton
-                                variant="blur"
-                                className="flex-1 drop-shadow-lg"
+                        {(screenState !== "falling") && (
+                            <Animated.View
+                                key="settings-buttons-down"
+                                exiting={FadeOutUp}
+                                className="w-[100vw] h-[100vw] items-center justify-center"
                             >
-
-                                <CameraSVG size={22} />
-                                <PoppinsText weight="medium" className='text-xl'>Snap a Photo</PoppinsText>
-                            </AppButton>
-                        </Animated.View>
-
-                        <Animated.View entering={FadeInRight.duration(300)}>
-                            <AppButton
-                                variant="blue"
-                                className="w-24"
-                                onPress={() => {
-                                    setScreenState("settings");
-                                }}
-                            >
-                                <SendSVG size={22} />
-
-                            </AppButton>
-                        </Animated.View>
-
+                                <SettingsButtons
+                                    beanPrivacy={beanPrivacy}
+                                    setScreenState={setScreenState}
+                                    setIsDropdownOpen={setIsDropdownOpen}
+                                />
+                            </Animated.View>
+                        )
+                        }
                     </Animated.View>
-                    :
-                    <View className='w-24 h-16' />
+                )}
+
+                {(screenState == "falling" || screenState == "lead-in-to-animation" || screenState == "animating") && (
+                    <AppButton
+                        variant="grey"
+                        className="w-16"
+                        onPress={() => setScreenState("settings")}
+                    >
+                        <BackArrowSVG size={24} />
+                    </AppButton>
                 )
-                :
-                <Animated.View
-                    className='absolute flex-row flex items-center justify-center bg-l w-[85vw] gap-4'
-                    exiting={FadeOutLeft}
-                >
-                    <Animated.View className="flex-1" entering={FadeInLeft.duration(300)}>
-                        <AppButton
-                            variant="blur"
-                            className="flex-1 drop-shadow-lg"
-                        >
+                }
 
-                            <CameraSVG size={22} />
-                            <PoppinsText weight="medium" className='text-xl'>Snap a Photo</PoppinsText>
-                        </AppButton>
-                    </Animated.View>
-
-                    <Animated.View entering={FadeInRight.duration(300)}>
-                        <AppButton
-                            variant="blue"
-                            className="w-24"
-                            onPress={() => {
-                                setScreenState("settings");
-                            }}
-                        >
-                            <SendSVG size={22} />
-
-                        </AppButton>
-                    </Animated.View>
-
-                </Animated.View>
-            }
-        </View>
-
-
+                {(isDropdownOpen === true) && (
+                    <PrivacyDropdown
+                        setIsDropdownOpen={setIsDropdownOpen}
+                        setBeanPrivacy={setBeanPrivacy}
+                    />
+                )}
+            </View>
+        </View >
     );
 };
 

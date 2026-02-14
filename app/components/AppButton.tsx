@@ -1,34 +1,41 @@
 import React, { useState } from 'react';
-import { TouchableOpacity, ViewStyle } from 'react-native';
+import { TouchableOpacity, ViewStyle, View } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { cssInterop } from "nativewind";
+
+// Enable NativeWind for BlurView
+cssInterop(BlurView, { className: "style" });
 
 interface AppButtonProps {
     children: React.ReactNode;
-    variant?: 'blur' | 'blue';
+    variant?: 'outline' | 'blue' | 'grey';
     className?: string;
     onPress?: () => void;
+    dropShadow?: boolean;
 }
 
 const AppButton = ({ 
     children, 
-    variant = 'blur', 
+    variant = 'outline', 
     className = '', 
-    onPress 
+    onPress,
+    dropShadow = true
 }: AppButtonProps) => {
     const [isPressed, setIsPressed] = useState(false);
 
     const getButtonStyles = (): string => {
-        const baseStyles = 'h-16 flex items-center justify-center rounded-[15px] flex-row gap-2';
+        // ADDED: overflow-hidden (clips the blur to the radius)
+        const baseStyles = 'h-16 flex items-center justify-center rounded-[15px] flex-row gap-2 overflow-hidden';
         
-        if (variant === 'blur') {
-            if (isPressed) {
-                return `${baseStyles} border border-white/30 bg-[#0a0d1a]`;
-            }
-            return `${baseStyles} border border-white/30 bg-[#0f1627bf]`;
+        if (variant === 'outline') {
+            const bg = isPressed ? 'bg-[#0a0d1a]' : 'bg-[#0f1627bf]';
+            return `${baseStyles} border border-white/30 ${bg}`;
+        } else if (variant === 'grey') {
+            const bg = isPressed ? 'bg-[#47556950]' : 'bg-[#475569ae]';
+            return `${baseStyles} ${bg}`;
         } else {
-            if (isPressed) {
-                return `${baseStyles} bg-[#026aa0]`;
-            }
-            return `${baseStyles} bg-[#0284C7]`;
+            const bg = isPressed ? 'bg-[#026aa0]' : 'bg-[#0284C7]';
+            return `${baseStyles} ${bg}`;
         }
     };
 
@@ -43,17 +50,39 @@ const AppButton = ({
         elevation: 24,
     };
 
+    const needsBlur = variant === 'grey' || variant === 'outline';
+
     return (
-        <TouchableOpacity
-            className={`${getButtonStyles()} ${className}`}
-            style={shadowStyle}
-            onPressIn={() => setIsPressed(true)}
-            onPressOut={() => setIsPressed(false)}
-            onPress={onPress}
-            activeOpacity={1}
+        /* OUTER VIEW: Handles Shadow + Layout
+           - Removed 'overflow-hidden' (so shadow is visible)
+           - Added 'rounded-[15px]' (so shadow matches shape)
+           - Applied shadowStyle here
+        */
+        <View 
+            className={`rounded-[15px]`} 
+            style={dropShadow ? shadowStyle : undefined}
         >
-            {children}
-        </TouchableOpacity>
+            <TouchableOpacity
+                className={`${getButtonStyles()} ${className}`}
+                // Removed shadowStyle from here
+                onPressIn={() => setIsPressed(true)}
+                onPressOut={() => setIsPressed(false)}
+                onPress={onPress}
+                activeOpacity={1}
+            >
+                {needsBlur && (
+                    <BlurView 
+                        intensity={50} 
+                        tint="dark" 
+                        // Removed rounded-[15px] here (Parent clips it now)
+                        className="absolute inset-0" 
+                    />
+                )}
+                <View className="z-10 flex-row items-center justify-center gap-2">
+                    {children}
+                </View>
+            </TouchableOpacity>
+        </View>
     );
 };
 
