@@ -16,6 +16,7 @@ interface BeanContainerProps extends PropsWithChildren {
     className?: string;
     beanText: string;
     setBeanText: (text: string) => void;
+    numberOfBeans: number;
 }
 
 type ScreenState = "typing" | "settings" | "falling" | "lead-in-to-animation" | "animating";
@@ -23,7 +24,7 @@ type ScreenState = "typing" | "settings" | "falling" | "lead-in-to-animation" | 
 type BeanPrivacy = "public" | "private";
 
 
-const BeanContainer = ({ className, beanText, setBeanText }: BeanContainerProps) => {
+const BeanContainer = ({ className, beanText, setBeanText, numberOfBeans }: BeanContainerProps) => {
     const TextStyle = {
         primary: "text-xl",
         secondary: "text-md opacity-50"
@@ -45,6 +46,7 @@ const BeanContainer = ({ className, beanText, setBeanText }: BeanContainerProps)
 
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+    //screen state bean animations
     useEffect(() => {
         if (screenState === "typing") {
             translateX.value = withSpring(0, { damping: 20, stiffness: 10 });
@@ -100,7 +102,6 @@ const BeanContainer = ({ className, beanText, setBeanText }: BeanContainerProps)
 
 
     //Animation frame-by-frame
-
     useEffect(() => {
         if (!(screenState === "animating")) {
             intervalIndex.current = startingAnimationIndex;
@@ -154,6 +155,8 @@ const BeanContainer = ({ className, beanText, setBeanText }: BeanContainerProps)
     }, [screenState, intervalIndex]);
 
 
+    const beanLocations = [{ translateX: 6.0905, translateY: 2.2181, rotation: 0 }]
+
 
     return (
         <View className={`w-[100vw] h-[100vw] flex items-center justify-center ${className}`}>
@@ -169,15 +172,37 @@ const BeanContainer = ({ className, beanText, setBeanText }: BeanContainerProps)
                 />
             </View>
 
-            <Bean
-                screenState={screenState}
-                beanText={beanText}
-                setBeanText={setBeanText}
-                scale={scale}
-                translateX={translateX}
-                translateY={translateY}
-                rotation={rotation}
-            />
+            <View
+                className="absolute w-full items-center justify-center"
+
+            >
+                <Bean
+                    screenState={screenState}
+                    beanText={beanText}
+                    setBeanText={setBeanText}
+                    scale={scale}
+                    translateX={translateX}
+                    translateY={translateY}
+                    rotation={rotation}
+                />
+            </View>
+
+            <View
+                className="absolute w-full items-center justify-center"
+
+            >
+                <Bean
+                    screenState={"falling"}
+                    beanText={beanText}
+                    setBeanText={setBeanText}
+                    scale={1}
+                    translateX={0}
+                    translateY={0}
+                    rotation={0}
+                />
+            </View>
+
+
 
             <View
                 className="absolute w-full items-center justify-center"

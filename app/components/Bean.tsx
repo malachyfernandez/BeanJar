@@ -13,16 +13,17 @@ interface BeanProps {
     screenState: ScreenState;
     beanText: string;
     setBeanText: (text: string) => void;
-    scale: SharedValue<number>;
-    translateX: SharedValue<number>;
-    translateY: SharedValue<number>;
-    rotation: SharedValue<number>;
+    scale: SharedValue<number> | number;
+    translateX: SharedValue<number> | number;
+    translateY: SharedValue<number> | number;
+    rotation: SharedValue<number> | number;
 }
 
 const Bean = ({ screenState, beanText, setBeanText, scale, translateX, translateY, rotation }: BeanProps) => {
     const animationCompletion = useSharedValue(0);
     const [isCoverVisible, setIsCoverVisible] = useState(true);
 
+    //screen state effects
     useEffect(() => {
         if (screenState !== "typing") {
             animationCompletion.value = withSpring(1);
@@ -37,13 +38,19 @@ const Bean = ({ screenState, beanText, setBeanText, scale, translateX, translate
         }
     }, [screenState]);
 
+    //animated style
     const animatedStyle = useAnimatedStyle(() => {
+        const scaleValue = typeof scale === 'number' ? scale : scale.value;
+        const translateXValue = typeof translateX === 'number' ? translateX : translateX.value;
+        const translateYValue = typeof translateY === 'number' ? translateY : translateY.value;
+        const rotationValue = typeof rotation === 'number' ? rotation : rotation.value;
+        
         return {
             transform: [
-                { scale: scale.value },
-                { translateX: translateX.value },
-                { translateY: translateY.value },
-                { rotate: rotation.value + "deg" }
+                { scale: scaleValue },
+                { translateX: translateXValue },
+                { translateY: translateYValue },
+                { rotate: rotationValue + "deg" }
             ]
         };
     });
@@ -89,3 +96,4 @@ const Bean = ({ screenState, beanText, setBeanText, scale, translateX, translate
 };
 
 export default Bean;
+
