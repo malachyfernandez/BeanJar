@@ -1,16 +1,17 @@
 import React, { PropsWithChildren, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
-import Animated, { FadeInDown, FadeInRight, FadeOutDown, FadeOutRight, FadeOutUp, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInRight, FadeOutDown, FadeOutRight, FadeOutUp, SharedValue, useSharedValue, withSpring } from 'react-native-reanimated';
 import Bean from './Bean';
 import TypingButtons from './TypingButtons';
 import SettingsButtons from './SettingsButtons';
 import PrivacyDropdown from './PrivacyDropdown';
-import PoppinsText from './PoppinsText';
-import SpeachBubbleArmSVG from './SpeachBubbleArmSVG';
+
 import AppButton from './AppButton';
 import BackArrowSVG from './BackArrowSVG';
-import { translateXsAnimation, translateYsAnimation, rotationsAnimation } from './BeanAnimations';
+import { translateXsAnimation as translateXsAnimation1, translateYsAnimation as translateYsAnimation1, rotationsAnimation as rotationsAnimation1 } from './BeanAnimations';
+import { translateXsAnimation as translateXsAnimation2, translateYsAnimation as translateYsAnimation2, rotationsAnimation as rotationsAnimation2 } from './BeanAnimations-2';
 import Jar from './Jar';
+import StaticBean from './StaticBean';
 
 interface BeanContainerProps extends PropsWithChildren {
     className?: string;
@@ -80,7 +81,10 @@ const BeanContainer = ({ className, beanText, setBeanText, numberOfBeans }: Bean
         }
 
         if (screenState === "animating") {
-            cameraY.value = withSpring(-800, { duration: 4000 });
+            cameraY.value = withSpring(-700, { duration: 4000 });
+        } else 
+            if (screenState === "lead-in-to-animation") {
+            cameraY.value = withSpring(-400, { duration: 1000 });
         } else {
             cameraY.value = withSpring(0, { duration: 400 });
         }
@@ -94,12 +98,16 @@ const BeanContainer = ({ className, beanText, setBeanText, numberOfBeans }: Bean
     const intervalIndex = useRef<number>(0);
 
 
-    const animationFrameDuration = 40;
+    const animationFrameDuration = 20;
 
     const animationScale = 70;
 
     const startingAnimationIndex = 50;
 
+
+    const getFinalTranslateY = (val: number) => -1 * val * animationScale  + 3470;
+    const getAdjustedTranslateX = (val: number) => val * animationScale;
+    const getAdjustedRotation = (val: number) => (-1 * val * 27) + 100;
 
     //Animation frame-by-frame
     useEffect(() => {
@@ -113,40 +121,42 @@ const BeanContainer = ({ className, beanText, setBeanText, numberOfBeans }: Bean
         const intervalId = setInterval(() => {
             intervalIndex.current++;
 
+            
+            let finalTranslateY = 0, adjustedTranslateX = 0, adjustedRotation = 0;
 
-            const flippedTranslateY = -1 * translateYsAnimation[intervalIndex.current];
-            const finalTranslateY = flippedTranslateY * animationScale;
-
-
-            const adjustedTranslateX = translateXsAnimation[intervalIndex.current] * animationScale
-
-            const flippedRotation = -1 * rotationsAnimation[intervalIndex.current]
-            const adjustedRotation = flippedRotation * 27 + 100
-
-            // console.log(`intervalIndex: ${intervalIndex.current}`);
-            // console.log(`translateYsAnimation: ${finalTranslateY}`);
-            // console.log(`translateXsAnimation: ${adjustedTranslateX}`);
-            // console.log(`rotationsAnimation: ${adjustedRotation}`);
-
-
-            const isAnimationComplete = (isNaN(finalTranslateY) || isNaN(adjustedTranslateX) || isNaN(adjustedRotation))
-
-
-            // console.log(`isAnimationComplete: ${isAnimationComplete}`);
-            if (isAnimationComplete) {
-                clearInterval(intervalId)
-                return;
+            if (numberOfBeans === 0) {
+                finalTranslateY = getFinalTranslateY(translateYsAnimation1[intervalIndex.current]);
+                adjustedTranslateX = getAdjustedTranslateX(translateXsAnimation1[intervalIndex.current]);
+                adjustedRotation = getAdjustedRotation(rotationsAnimation1[intervalIndex.current]);
+                
+            } else if (numberOfBeans === 1) {
+                finalTranslateY = getFinalTranslateY(translateYsAnimation2[intervalIndex.current]);
+                adjustedTranslateX = getAdjustedTranslateX(translateXsAnimation2[intervalIndex.current]);
+                adjustedRotation = getAdjustedRotation(rotationsAnimation2[intervalIndex.current]);
+                
             }
 
 
-            translateY.value = withSpring((finalTranslateY - cameraY.value), { duration: animationFrameDuration });
-            // console.log(`y: ${finalTranslateY}`);
+        
 
+            const isAnimationComplete = (
+                isNaN(finalTranslateY) ||
+                isNaN(adjustedTranslateX) ||
+                isNaN(adjustedRotation)
+            );
+
+            if (isAnimationComplete) {
+                clearInterval(intervalId);
+                return;
+            }
+
+            // Apply to shared values
+            translateY.value = withSpring(finalTranslateY, { duration: animationFrameDuration });
             translateX.value = withSpring(adjustedTranslateX, { duration: animationFrameDuration });
-            // console.log(`x: ${adjustedTranslateX}`);
-
+            // console.log("Animation:", finalTranslateY, adjustedTranslateX, adjustedRotation);
             rotation.value = withSpring(adjustedRotation, { duration: animationFrameDuration });
-            // console.log(`rotation: ${adjustedRotation}`);
+
+            
 
         }, animationFrameDuration);
 
@@ -155,8 +165,10 @@ const BeanContainer = ({ className, beanText, setBeanText, numberOfBeans }: Bean
     }, [screenState, intervalIndex]);
 
 
-    const beanLocations = [{ translateX: 6.0905, translateY: 2.2181, rotation: 0 }]
+    const beanLocations = [{ translateX: 6.0905, translateY: 2.2181, rotation: -9.0400 }]
 
+
+    
 
     return (
         <View className={`w-[100vw] h-[100vw] flex items-center justify-center ${className}`}>
@@ -172,6 +184,22 @@ const BeanContainer = ({ className, beanText, setBeanText, numberOfBeans }: Bean
                 />
             </View>
 
+            {(screenState === "animating" || screenState === "lead-in-to-animation") && (
+                <View
+                    className="absolute w-full items-center justify-center"
+
+                >
+                    <StaticBean
+                        scale={0.3}
+                        translateX={getAdjustedTranslateX(beanLocations[0].translateX)}
+                        translateY={getFinalTranslateY(beanLocations[0].translateY)}
+                        rotation={getAdjustedRotation(beanLocations[0].rotation)}
+                        cameraY={cameraY}
+                    />
+
+                </View>
+            )}
+
             <View
                 className="absolute w-full items-center justify-center"
 
@@ -184,23 +212,12 @@ const BeanContainer = ({ className, beanText, setBeanText, numberOfBeans }: Bean
                     translateX={translateX}
                     translateY={translateY}
                     rotation={rotation}
+                    cameraY={cameraY}
                 />
+
             </View>
 
-            <View
-                className="absolute w-full items-center justify-center"
 
-            >
-                <Bean
-                    screenState={"falling"}
-                    beanText={beanText}
-                    setBeanText={setBeanText}
-                    scale={1}
-                    translateX={0}
-                    translateY={0}
-                    rotation={0}
-                />
-            </View>
 
 
 
