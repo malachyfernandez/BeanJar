@@ -10,6 +10,7 @@ import AppButton from './AppButton';
 import BackArrowSVG from './BackArrowSVG';
 import { translateXsAnimation as translateXsAnimation1, translateYsAnimation as translateYsAnimation1, rotationsAnimation as rotationsAnimation1 } from './BeanAnimations';
 import { translateXsAnimation as translateXsAnimation2, translateYsAnimation as translateYsAnimation2, rotationsAnimation as rotationsAnimation2 } from './BeanAnimations-2';
+import { translateXsAnimation as translateXsAnimation3, translateYsAnimation as translateYsAnimation3, rotationsAnimation as rotationsAnimation3 } from './BeanAnimations-3';
 import Jar from './Jar';
 import StaticBean from './StaticBean';
 
@@ -70,7 +71,7 @@ const BeanContainer = ({ className, beanText, setBeanText, numberOfBeans }: Bean
             clearTimeout(rotationTimeoutRef.current || undefined);
         }
         if (screenState === "lead-in-to-animation") {
-            scale.value = withSpring((.3), { duration: 100 });
+            scale.value = withSpring((.31), { duration: 100 });
             translateY.value = withSpring(-2000, { duration: 400 });
 
             timeoutRef.current = setTimeout(() => {
@@ -82,12 +83,12 @@ const BeanContainer = ({ className, beanText, setBeanText, numberOfBeans }: Bean
 
         if (screenState === "animating") {
             cameraY.value = withSpring(-700, { duration: 4000 });
-        } else 
+        } else
             if (screenState === "lead-in-to-animation") {
-            cameraY.value = withSpring(-400, { duration: 1000 });
-        } else {
-            cameraY.value = withSpring(0, { duration: 400 });
-        }
+                cameraY.value = withSpring(-400, { duration: 1000 });
+            } else {
+                cameraY.value = withSpring(0, { duration: 400 });
+            }
 
 
         return () => {
@@ -100,12 +101,12 @@ const BeanContainer = ({ className, beanText, setBeanText, numberOfBeans }: Bean
 
     const animationFrameDuration = 20;
 
-    const animationScale = 70;
+    const animationScale = 63;
 
-    const startingAnimationIndex = 50;
+    const startingAnimationIndex = 40;
 
 
-    const getFinalTranslateY = (val: number) => -1 * val * animationScale  + 3470;
+    const getFinalTranslateY = (val: number) => -1 * val * animationScale + 3350;
     const getAdjustedTranslateX = (val: number) => val * animationScale;
     const getAdjustedRotation = (val: number) => (-1 * val * 27) + 100;
 
@@ -121,23 +122,28 @@ const BeanContainer = ({ className, beanText, setBeanText, numberOfBeans }: Bean
         const intervalId = setInterval(() => {
             intervalIndex.current++;
 
-            
+
             let finalTranslateY = 0, adjustedTranslateX = 0, adjustedRotation = 0;
 
             if (numberOfBeans === 0) {
                 finalTranslateY = getFinalTranslateY(translateYsAnimation1[intervalIndex.current]);
                 adjustedTranslateX = getAdjustedTranslateX(translateXsAnimation1[intervalIndex.current]);
                 adjustedRotation = getAdjustedRotation(rotationsAnimation1[intervalIndex.current]);
-                
+
             } else if (numberOfBeans === 1) {
                 finalTranslateY = getFinalTranslateY(translateYsAnimation2[intervalIndex.current]);
                 adjustedTranslateX = getAdjustedTranslateX(translateXsAnimation2[intervalIndex.current]);
                 adjustedRotation = getAdjustedRotation(rotationsAnimation2[intervalIndex.current]);
-                
+
+            } else if (numberOfBeans === 2) {
+                finalTranslateY = getFinalTranslateY(translateYsAnimation3[intervalIndex.current]);
+                adjustedTranslateX = getAdjustedTranslateX(translateXsAnimation3[intervalIndex.current]);
+                adjustedRotation = getAdjustedRotation(rotationsAnimation3[intervalIndex.current]);
+
             }
 
 
-        
+
 
             const isAnimationComplete = (
                 isNaN(finalTranslateY) ||
@@ -156,7 +162,7 @@ const BeanContainer = ({ className, beanText, setBeanText, numberOfBeans }: Bean
             // console.log("Animation:", finalTranslateY, adjustedTranslateX, adjustedRotation);
             rotation.value = withSpring(adjustedRotation, { duration: animationFrameDuration });
 
-            
+
 
         }, animationFrameDuration);
 
@@ -165,10 +171,15 @@ const BeanContainer = ({ className, beanText, setBeanText, numberOfBeans }: Bean
     }, [screenState, intervalIndex]);
 
 
-    const beanLocations = [{ translateX: 6.0905, translateY: 2.2181, rotation: -9.0400 }]
+    const beanLocations = [
+        { translateX: 6.0905, translateY: 2.2181, rotation: -9.0400 },
+        { translateX: -4.6952, translateY: 1.4688, rotation: -3.8818 }
 
 
-    
+    ]
+
+
+
 
     return (
         <View className={`w-[100vw] h-[100vw] flex items-center justify-center ${className}`}>
@@ -185,19 +196,26 @@ const BeanContainer = ({ className, beanText, setBeanText, numberOfBeans }: Bean
             </View>
 
             {(screenState === "animating" || screenState === "lead-in-to-animation") && (
-                <View
-                    className="absolute w-full items-center justify-center"
+                
+                    Array.from({ length: numberOfBeans }, (_, index) => (
+                        <View
+                            className="absolute w-full items-center justify-center"
+                            key={index}
+                        >
 
-                >
-                    <StaticBean
-                        scale={0.3}
-                        translateX={getAdjustedTranslateX(beanLocations[0].translateX)}
-                        translateY={getFinalTranslateY(beanLocations[0].translateY)}
-                        rotation={getAdjustedRotation(beanLocations[0].rotation)}
-                        cameraY={cameraY}
-                    />
+                            <StaticBean
+                                // key={index}
+                                scale={scale}
+                                translateX={getAdjustedTranslateX(beanLocations[index].translateX)}
+                                translateY={getFinalTranslateY(beanLocations[index].translateY)}
+                                rotation={getAdjustedRotation(beanLocations[index].rotation)}
+                                cameraY={cameraY}
+                            />
 
-                </View>
+
+                        </View>
+                    ))
+                
             )}
 
             <View
