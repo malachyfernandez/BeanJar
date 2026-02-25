@@ -2,13 +2,25 @@ import { useEffect } from "react";
 import { useUser } from "@clerk/clerk-expo";
 
 export const useSyncUserData = (userData: any, setUserData: any) => {
-    const { user } = useUser();
+    const { user, isLoaded: isClerkLoaded } = useUser();
 
     useEffect(() => {
+        // Don't proceed if Clerk hasn't loaded yet
+        if (!isClerkLoaded) {
+            console.log("⏳ Clerk still loading, skipping sync");
+            return;
+        }
+
         const isLoggedIn = !!user;
         const isLoaded = userData !== undefined;
 
-        if (isLoggedIn && isLoaded) {
+        // Only proceed if user is fully loaded and authenticated
+        if (!isLoggedIn) {
+            console.log("🔒 User not authenticated, skipping sync");
+            return;
+        }
+
+        if (isLoaded) {
             const clerkEmail = user.primaryEmailAddress?.emailAddress;
             const clerkName = user.fullName;
 
@@ -28,5 +40,5 @@ export const useSyncUserData = (userData: any, setUserData: any) => {
                 console.log("✅ Synced UserData with Clerk:");
             }
         }
-    }, [user, userData]);
+    }, [user, userData, isClerkLoaded]);
 };

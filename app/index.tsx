@@ -112,7 +112,7 @@ export default function HomeScreen() {
 
         <SignedIn>
 
-          <BeanContainer numberOfBeans={1} beanText={beanText} setBeanText={setBeanText} />
+          <BeanContainer numberOfBeans={0} beanText={beanText} setBeanText={setBeanText} />
 
         </SignedIn>
 

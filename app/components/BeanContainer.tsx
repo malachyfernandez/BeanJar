@@ -8,9 +8,7 @@ import PrivacyDropdown from './PrivacyDropdown';
 
 import AppButton from './AppButton';
 import BackArrowSVG from './BackArrowSVG';
-import { translateXsAnimation as translateXsAnimation1, translateYsAnimation as translateYsAnimation1, rotationsAnimation as rotationsAnimation1 } from './BeanAnimations';
-import { translateXsAnimation as translateXsAnimation2, translateYsAnimation as translateYsAnimation2, rotationsAnimation as rotationsAnimation2 } from './BeanAnimations-2';
-import { translateXsAnimation as translateXsAnimation3, translateYsAnimation as translateYsAnimation3, rotationsAnimation as rotationsAnimation3 } from './BeanAnimations-3';
+import AnimatedBean from './AnimatedBean';
 import Jar from './Jar';
 import StaticBean from './StaticBean';
 
@@ -25,6 +23,8 @@ type ScreenState = "typing" | "settings" | "falling" | "lead-in-to-animation" | 
 
 type BeanPrivacy = "public" | "private";
 
+const jarSceneScale = 0.31;
+
 
 const BeanContainer = ({ className, beanText, setBeanText, numberOfBeans }: BeanContainerProps) => {
     const TextStyle = {
@@ -38,42 +38,33 @@ const BeanContainer = ({ className, beanText, setBeanText, numberOfBeans }: Bean
 
     const [beanPrivacy, setBeanPrivacy] = useState<BeanPrivacy>("public");
 
-    const scale = useSharedValue(1);
-    const translateX = useSharedValue(0);
-    const translateY = useSharedValue(0);
-    const rotation = useSharedValue(0);
     const cameraY = useSharedValue(0);
 
     const rotationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    //screen state bean animations
+    // Camera Y animation logic
     useEffect(() => {
-        if (screenState === "typing") {
-            translateX.value = withSpring(0, { damping: 20, stiffness: 10 });
-            translateY.value = withSpring(0, { damping: 20, stiffness: 10 });
-            scale.value = withSpring(1, { damping: 20, stiffness: 10 });
-        } else if (screenState === "settings") {
-            translateX.value = withSpring(0, { damping: 20, stiffness: 10 });
-            translateY.value = withSpring(-100, { damping: 20, stiffness: 10 });
-            scale.value = withSpring(1, { damping: 20, stiffness: 10 });
-            rotation.value = withSpring(0, { damping: 20, stiffness: 10 });
+        if (screenState === "animating") {
+            cameraY.value = withSpring(-700, { duration: 4000 });
+        } else if (screenState === "lead-in-to-animation") {
+            cameraY.value = withSpring(-400, { duration: 1000 });
+        } else {
+            cameraY.value = withSpring(0, { duration: 400 });
         }
-        if (screenState === "falling") {
-            // translateY.value = withSpring(0, { damping: 20, stiffness: 10 });
-            scale.value = withSpring((.7), { duration: 400 });
+    }, [screenState]);
 
+    // Screen state transition logic
+    useEffect(() => {
+        if (screenState === "falling") {
             rotationTimeoutRef.current = setTimeout(() => {
                 setScreenState("lead-in-to-animation");
             }, 1000);
         } else {
             clearTimeout(rotationTimeoutRef.current || undefined);
         }
+        
         if (screenState === "lead-in-to-animation") {
-            scale.value = withSpring((.31), { duration: 100 });
-            translateY.value = withSpring(-2000, { duration: 400 });
-
             timeoutRef.current = setTimeout(() => {
                 setScreenState("animating");
             }, 1000);
@@ -81,94 +72,18 @@ const BeanContainer = ({ className, beanText, setBeanText, numberOfBeans }: Bean
             clearTimeout(timeoutRef.current || undefined);
         }
 
-        if (screenState === "animating") {
-            cameraY.value = withSpring(-700, { duration: 4000 });
-        } else
-            if (screenState === "lead-in-to-animation") {
-                cameraY.value = withSpring(-400, { duration: 1000 });
-            } else {
-                cameraY.value = withSpring(0, { duration: 400 });
-            }
-
-
         return () => {
             clearTimeout(rotationTimeoutRef.current || undefined);
         };
     }, [screenState]);
 
-    const intervalIndex = useRef<number>(0);
-
-
-    const animationFrameDuration = 20;
-
+    // Helper functions for static beans
     const animationScale = 63;
-
-    const startingAnimationIndex = 40;
-
-
     const getFinalTranslateY = (val: number) => -1 * val * animationScale + 3350;
     const getAdjustedTranslateX = (val: number) => val * animationScale;
     const getAdjustedRotation = (val: number) => (-1 * val * 27) + 100;
 
-    //Animation frame-by-frame
-    useEffect(() => {
-        if (!(screenState === "animating")) {
-            intervalIndex.current = startingAnimationIndex;
-            return;
-        }
 
-
-
-        const intervalId = setInterval(() => {
-            intervalIndex.current++;
-
-
-            let finalTranslateY = 0, adjustedTranslateX = 0, adjustedRotation = 0;
-
-            if (numberOfBeans === 0) {
-                finalTranslateY = getFinalTranslateY(translateYsAnimation1[intervalIndex.current]);
-                adjustedTranslateX = getAdjustedTranslateX(translateXsAnimation1[intervalIndex.current]);
-                adjustedRotation = getAdjustedRotation(rotationsAnimation1[intervalIndex.current]);
-
-            } else if (numberOfBeans === 1) {
-                finalTranslateY = getFinalTranslateY(translateYsAnimation2[intervalIndex.current]);
-                adjustedTranslateX = getAdjustedTranslateX(translateXsAnimation2[intervalIndex.current]);
-                adjustedRotation = getAdjustedRotation(rotationsAnimation2[intervalIndex.current]);
-
-            } else if (numberOfBeans === 2) {
-                finalTranslateY = getFinalTranslateY(translateYsAnimation3[intervalIndex.current]);
-                adjustedTranslateX = getAdjustedTranslateX(translateXsAnimation3[intervalIndex.current]);
-                adjustedRotation = getAdjustedRotation(rotationsAnimation3[intervalIndex.current]);
-
-            }
-
-
-
-
-            const isAnimationComplete = (
-                isNaN(finalTranslateY) ||
-                isNaN(adjustedTranslateX) ||
-                isNaN(adjustedRotation)
-            );
-
-            if (isAnimationComplete) {
-                clearInterval(intervalId);
-                return;
-            }
-
-            // Apply to shared values
-            translateY.value = withSpring(finalTranslateY, { duration: animationFrameDuration });
-            translateX.value = withSpring(adjustedTranslateX, { duration: animationFrameDuration });
-            // console.log("Animation:", finalTranslateY, adjustedTranslateX, adjustedRotation);
-            rotation.value = withSpring(adjustedRotation, { duration: animationFrameDuration });
-
-
-
-        }, animationFrameDuration);
-
-
-        return () => clearInterval(intervalId);
-    }, [screenState, intervalIndex]);
 
 
     const beanLocations = [
@@ -204,8 +119,7 @@ const BeanContainer = ({ className, beanText, setBeanText, numberOfBeans }: Bean
                         >
 
                             <StaticBean
-                                // key={index}
-                                scale={scale}
+                                scale={jarSceneScale}
                                 translateX={getAdjustedTranslateX(beanLocations[index].translateX)}
                                 translateY={getFinalTranslateY(beanLocations[index].translateY)}
                                 rotation={getAdjustedRotation(beanLocations[index].rotation)}
@@ -218,22 +132,13 @@ const BeanContainer = ({ className, beanText, setBeanText, numberOfBeans }: Bean
                 
             )}
 
-            <View
-                className="absolute w-full items-center justify-center"
-
-            >
-                <Bean
-                    screenState={screenState}
-                    beanText={beanText}
-                    setBeanText={setBeanText}
-                    scale={scale}
-                    translateX={translateX}
-                    translateY={translateY}
-                    rotation={rotation}
-                    cameraY={cameraY}
-                />
-
-            </View>
+            <AnimatedBean
+                screenState={screenState}
+                beanText={beanText}
+                setBeanText={setBeanText}
+                numberOfBeans={numberOfBeans}
+                cameraY={cameraY}
+            />
 
 
 

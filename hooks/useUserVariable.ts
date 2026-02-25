@@ -104,12 +104,16 @@ export function useUserVariable<T>({
             }
         }
 
-        setMutation({
-            key,
-            value: newValue,
-            isPublic: isPublic,
-            searchString: currentSearchString ?? undefined,
-        });
+        try {
+            setMutation({
+                key,
+                value: newValue,
+                isPublic: isPublic,
+                searchString: currentSearchString ?? undefined,
+            });
+        } catch (error) {
+            console.error("❌ Failed to set user variable:", error);
+        }
     };
 
     return [value, setValue] as const;
