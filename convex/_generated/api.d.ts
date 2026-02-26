@@ -9,7 +9,9 @@
  */
 
 import type * as globals from "../globals.js";
+import type * as migrations from "../migrations.js";
 import type * as user_vars from "../user_vars.js";
+import type * as user_vars_get from "../user_vars_get.js";
 
 import type {
   ApiFromModules,
@@ -19,7 +21,9 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   globals: typeof globals;
+  migrations: typeof migrations;
   user_vars: typeof user_vars;
+  user_vars_get: typeof user_vars_get;
 }>;
 
 /**

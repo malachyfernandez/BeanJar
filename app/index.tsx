@@ -8,15 +8,13 @@ import * as WebBrowser from "expo-web-browser";
 import { useUserVariable } from "../hooks/useUserVariable";
 import { useGlobalVariable } from "../hooks/useGlobalVariable";
 import { useSyncUserData } from "../hooks/useSyncUserData";
-import { useSearch } from "../hooks/useSearch";
-
+import { useUserVariableGet } from "../hooks/useUserVariableGet";
 
 import AuthButton from "./components/AuthButton";
 
 import ContainerCol from "./components/ContainerCol";
 
 import BeanContainer from "./components/BeanContainer";
-
 
 // Warm up the browser (required for Android reliability)
 export const useWarmUpBrowser = () => {
@@ -48,24 +46,65 @@ export default function HomeScreen() {
   const [userData, setUserData] = useUserVariable<UserData>({
     key: "userData",
     defaultValue: {},
-    isPublic: true,
-    searchKey: "name"
+    privacy: "PUBLIC",
+    searchKeys: ["name"],
   });
-  
+
+
   // updates userData
-  useSyncUserData(userData, setUserData);
+  useSyncUserData(userData.value, setUserData);
 
   const [globalScore, setGlobalScore] = useGlobalVariable<number>("globalScore", 0);
   const [userScore, setUserScore] = useUserVariable<number>({
     key: "userScore",
     defaultValue: 0,
-    isPublic: true,
+    privacy: "PUBLIC",
   });
 
+  // IGNORE THE FOLLOWING CODE I AM TRYING OUT A NEW WAY TO HANDLE ARRAYS
+  // interface Bean {
+  //   beatText: string;
+  //   photoURL?: string;
+  // };
+
+  // useUserArrayDefinition<Bean>({
+  //   key: "beanArray",
+  //   defaultValue: [],
+  //   privacy: "private",
+  // });
+
+  // const [LastBean, setLastBean] = useUserArray({
+  //   key: "beanArray",
+
+  // });
+
+  // const [beanLength] = useUserArrayLength({
+  //   key: "beanArray",
+  // });
+  //END OF TESTING KEEP ALL THIS
+
+  //   (alias) function useUserVariable<T>({ key, defaultValue, isPublic, userId, searchString, searchKey }: {
+  //     key: string;
+  //     defaultValue?: T;
+  //     isPublic?: boolean;
+  //     userId?: string;
+  //     searchString?: string;
+  //     searchKey?: keyof T extends never ? string : keyof T;
+  //   }): [T | undefined, (newValue: T) => void]
+  // import useUserVariable
 
   const [searchText, setSearchText] = useState("");
-  const [beanText, setBeanText] = useState("");
-  const userSearchArray = useSearch<UserData>(searchText, "userData")
+
+  const [beanText, setBeanText] = useUserVariable<string>({
+    key: "beanText",
+    defaultValue: "",
+  });
+
+  const userSearchArray = useUserVariableGet<UserData>({
+    key: "userData",
+    searchFor: searchText,
+    returnTop: 10,
+  });
 
   // Keyboard listener
   useEffect(() => {
@@ -108,29 +147,29 @@ export default function HomeScreen() {
 
       </ContainerCol>
 
-      
-
-        <SignedIn>
-
-          <BeanContainer numberOfBeans={0} beanText={beanText} setBeanText={setBeanText} />
-
-        </SignedIn>
-
-        <SignedOut>
-          <ContainerCol>
-            <AuthButton
-              authFlow={startAppleFlow}
-              buttonText="Continue with Apple"
-            />
-            <AuthButton
-              authFlow={startGoogleFlow}
-              buttonText="Continue with Google"
-            />
-          </ContainerCol>
 
 
+      <SignedIn>
 
-        </SignedOut>
+        <BeanContainer numberOfBeans={0} beanText={beanText.value} setBeanText={setBeanText} />
+
+      </SignedIn>
+
+      <SignedOut>
+        <ContainerCol>
+          <AuthButton
+            authFlow={startAppleFlow}
+            buttonText="Continue with Apple"
+          />
+          <AuthButton
+            authFlow={startGoogleFlow}
+            buttonText="Continue with Google"
+          />
+        </ContainerCol>
+
+
+
+      </SignedOut>
     </SafeAreaView >
   );
 }

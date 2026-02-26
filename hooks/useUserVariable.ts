@@ -1,10 +1,25 @@
 
 
-import { useQuery, useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
+import { useEffect, useRef } from "react";
 
-interface VariableOptions<T> {
+// Frontend privacy shape: PUBLIC, PRIVATE, or whitelist of userIds
+type Privacy = "PUBLIC" | "PRIVATE" | string[];
 
+type SyncState = {
+    isSyncing: boolean;
+};
+
+type ObjectKeys<T> = T extends object ? Extract<keyof T, string> : never;
+
+// Rich bean value exposed to the UI
+export type UserVariableResult<T> = {
+    value: T;
+    lastModified?: number;
+    timeCreated?: number;
+    userId?: string;
+    state: SyncState;
 };
 
 
@@ -19,102 +34,138 @@ interface VariableOptions<T> {
  *
  * **1. Simple: Reading & Writing your own data**
  * ```ts
- * const [myCount, setMyCount] = useUserVariable<number>("count", 0);
+ * const [myCount, setMyCount] = useUserVariable<number>({
+ *   key: "count",
+ *   defaultValue: 0,
+ * });
+ *
+ * myCount.value
+ * myCount.lastModified
+ * myCount.timeCreated
+ * myCount.userId
+ * myCount.state.isSyncing
+ *
+ * setMyCount(123);
  * ```
  *
- * **2. Public Profile (Searchable)**
- * By setting `isPublic`, others can read this. By setting `searchKey`, you can
- * search for users based on the value of that specific field (e.g., finding a user by their username).
+ * **2. Public profile + searchable fields**
  * ```ts
  * type UserData = { username: string; name: string };
  *
- * const [profile, setProfile] = useUserVariable<UserData>("profile", undefined, {
- * isPublic: true,       // Allow others to read this
- * searchKey: "username" // "Tie" the search index to the username field
+ * const [profile, setProfile] = useUserVariable<UserData>({
+ *   key: "profile",
+ *   privacy: "PUBLIC",
+ *   searchKeys: ["username", "name"],
+ * });
+ *
+ * setProfile({ username: "malachy", name: "Malachy" });
+ * ```
+ *
+ * **3. Filterable variables**
+ * ```ts
+ * type Bean = { name: string; description: string; color: string };
+ *
+ * const [bean, setBean] = useUserVariable<Bean>({
+ *   key: "beans",
+ *   privacy: "PUBLIC",
+ *   filterKey: "color",
+ *   searchKeys: ["name", "description"],
  * });
  * ```
  *
- * **3. Reading another user's variable**
- * You can read another user's data if they have marked it as `isPublic`.
- * You cannot edit another user's data (the setter will be ignored).
- * ```ts
- * const [theirProfile] = useUserVariable<UserData>("profile", undefined, {
- * userId: "user_123_abc"
- * });
- * ```
+ * Notes:
+ * - For performance warnings (searchMode=SORTED, in-memory filtering, etc.) edit `utils/devWarningsConfig.ts`.
  *
  * ---
  * @template T - The type of data to store (number, string, object, etc).
  * @param key - A unique name for this variable.
  * @param defaultValue - The value to use while loading or if the variable doesn't exist yet.
- * @param options - Settings for `isPublic` (visibility), `userId` (reading others), and `searchKey` (indexing).
+ * @param options - Settings for privacy, searching, filtering, and other server-backed behavior.
  */
 export function useUserVariable<T>({
     key,
     defaultValue,
-    isPublic = false,
-    userId,
+    privacy = "PRIVATE",
+    filterKey,
+    searchKeys,
+    filterString,
     searchString,
-    searchKey
 }: {
     key: string;
     defaultValue?: T;
-    isPublic?: boolean;
-    userId?: string;
+    privacy?: Privacy;
+    filterKey?: ObjectKeys<T>;
+    searchKeys?: ObjectKeys<T>[];
+    filterString?: string;
     searchString?: string;
-    searchKey?: keyof T extends never ? string : keyof T;
-}): [T | undefined, (newValue: T) => void] {
+    sortKey?: "PROPERTY_LAST_MODIFIED" | "PROPERTY_TIME_CREATED";
+}): [UserVariableResult<T>, (newValue: T) => void] {
+    const record = useQuery(api.user_vars.get, { key });
 
-    // determine user, privliges, etc
-    const queryArgs = userId
-        ? { key, targetUserToken: userId }
-        : { key };
+    const isSyncing = record === undefined;
 
-    const data = useQuery(api.user_vars.get, queryArgs);
+    const value: T = isSyncing
+        ? (defaultValue as T)
+        : ((record?.value ?? defaultValue) as T);
 
-    const isLoading = (data === undefined);
+    const lastModified = record?.lastModified as number | undefined;
+    const timeCreated = (record as any)?.createdAt as number | undefined;
+    const userId = (record as any)?.userToken as string | undefined;
 
-    const value = isLoading
-        ? undefined
-        : (data ?? defaultValue ?? null);
+    const didAutoCreateRef = useRef(false);
 
-    const isReadOnly = !!userId;
-
-    // Actual mutation code
     const setMutation = useMutation(api.user_vars.set)
         .withOptimisticUpdate((localStore, args) => {
-            if (!isReadOnly) {
-                localStore.setQuery(api.user_vars.get, { key }, args.value);
-            }
+            const existing = localStore.getQuery(api.user_vars.get, { key }) as any;
+            const now = Date.now();
+            localStore.setQuery(api.user_vars.get, { key }, {
+                ...(existing ?? {}),
+                key,
+                value: args.value,
+                lastModified: now,
+                createdAt: existing?.createdAt ?? now,
+                privacy: args.privacy,
+                filterKey: args.filterKey,
+                searchKeys: args.searchKeys,
+            });
         });
 
-    // Setter
     const setValue = (newValue: T) => {
-        if (isReadOnly) {
-            console.warn("Cannot set variable for another user.");
-            return;
-        }
+        // Map frontend privacy to backend format
+        const backendPrivacy = Array.isArray(privacy)
+            ? { allowList: privacy }
+            : privacy;
 
-        let currentSearchString = searchString;
+        const effectiveFilterKey = filterKey ?? ((record as any)?.filterKey as string | undefined);
+        const effectiveSearchKeys = searchKeys ?? ((record as any)?.searchKeys as string[] | undefined);
 
-        if (searchKey && typeof newValue === 'object' && newValue !== null) {
-            const extractedValue = (newValue as any)[searchKey];
-            if (typeof extractedValue === 'string') {
-                currentSearchString = extractedValue;
-            }
-        }
-
-        try {
-            setMutation({
-                key,
-                value: newValue,
-                isPublic: isPublic,
-                searchString: currentSearchString ?? undefined,
-            });
-        } catch (error) {
-            console.error("❌ Failed to set user variable:", error);
-        }
+        setMutation({
+            key,
+            value: newValue,
+            privacy: backendPrivacy,
+            filterKey: effectiveFilterKey,
+            searchKeys: effectiveSearchKeys,
+            filterString,
+            searchString,
+        });
     };
 
-    return [value, setValue] as const;
+    useEffect(() => {
+        if (didAutoCreateRef.current) return;
+        if (record !== null) return;
+        if (defaultValue === undefined) return;
+        didAutoCreateRef.current = true;
+        setValue(defaultValue as T);
+    }, [record, defaultValue]);
+
+    return [
+        {
+            value,
+            lastModified,
+            timeCreated,
+            userId,
+            state: { isSyncing },
+        },
+        setValue,
+    ];
 }
