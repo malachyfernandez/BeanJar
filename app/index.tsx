@@ -107,32 +107,32 @@ export default function HomeScreen() {
   });
 
   // Keyboard listener
-  useEffect(() => {
-    const handleKeyPress = (event: any) => {
-      const key = event.key;
+  // useEffect(() => {
+  //   const handleKeyPress = (event: any) => {
+  //     const key = event.key;
 
-      if (key == '1') {
-        if (globalScore !== null && globalScore !== undefined) {
-          setGlobalScore(globalScore + 1);
-        }
-      }
+  //     if (key == '1') {
+  //       if (globalScore !== null && globalScore !== undefined) {
+  //         setGlobalScore(globalScore + 1);
+  //       }
+  //     }
 
-      //Shift version (1 is !)
-      if (key == '!') {
-        if (globalScore !== null && globalScore !== undefined) {
-          setGlobalScore(globalScore - 1);
-        }
-      }
-    };
+  //     //Shift version (1 is !)
+  //     if (key == '!') {
+  //       if (globalScore !== null && globalScore !== undefined) {
+  //         setGlobalScore(globalScore - 1);
+  //       }
+  //     }
+  //   };
 
-    // Add keyboard event listener
-    if (Platform.OS === 'web') {
-      window.addEventListener('keydown', handleKeyPress);
-      return () => {
-        window.removeEventListener('keydown', handleKeyPress);
-      };
-    }
-  }, [globalScore, setGlobalScore]);
+  //   // Add keyboard event listener
+  //   if (Platform.OS === 'web') {
+  //     window.addEventListener('keydown', handleKeyPress);
+  //     return () => {
+  //       window.removeEventListener('keydown', handleKeyPress);
+  //     };
+  //   }
+  // }, [globalScore, setGlobalScore]);
 
   return (
     <SafeAreaView className="flex-1 bg-slate-900 items-center justify-center">
