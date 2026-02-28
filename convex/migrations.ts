@@ -13,6 +13,10 @@ export const migrateUserVars = mutation({
                 patch.lastModified = Date.now();
             }
 
+            if (doc.createdAt === undefined || doc.createdAt === null) {
+                patch.createdAt = doc.lastModified ?? Date.now();
+            }
+
             if (doc.privacy === undefined || doc.privacy === null) {
                 patch.privacy = "PRIVATE";
             }
