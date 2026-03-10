@@ -1,8 +1,15 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
-export default defineSchema({
+const privacyValidator = v.union(
+    v.literal("PUBLIC"),
+    v.literal("PRIVATE"),
+    v.object({ allowList: v.array(v.string()) })
+);
 
+const primitiveIndexValue = v.union(v.string(), v.number(), v.boolean());
+
+export default defineSchema({
     globals: defineTable({
         key: v.string(),
         value: v.any(),
@@ -17,38 +24,34 @@ export default defineSchema({
         lastModified: v.number(),
         createdAt: v.number(),
 
-        // Configuration
-        privacy: v.union(
-            v.literal("PUBLIC"),
-            v.literal("PRIVATE"),
-            v.object({ allowList: v.array(v.string()) })
-        ),
+        // Stored config
+        privacy: privacyValidator,
         filterKey: v.optional(v.string()),
         searchKeys: v.optional(v.array(v.string())),
+        sortKey: v.optional(v.string()),
 
-        // Indexed Fields
-        filterString: v.optional(v.string()),
-        searchString: v.optional(v.string()),
+        // Server-derived query values
+        filterValue: v.optional(primitiveIndexValue),
+        searchValue: v.optional(v.string()),
+        sortValue: v.optional(primitiveIndexValue),
     })
         .index("by_user_key", ["userToken", "key"])
-        .index("by_key_privacy_modified", ["key", "privacy", "lastModified"])
-        .index("by_key_privacy_created", ["key", "privacy", "createdAt"])
-        .index("by_key_privacy_filter_modified", ["key", "privacy", "filterString", "lastModified"])
-        .index("by_key_privacy_filter_created", ["key", "privacy", "filterString", "createdAt"])
-        .index("by_key_user_privacy_modified", ["key", "userToken", "privacy", "lastModified"])
-        .index("by_key_user_privacy_created", ["key", "userToken", "privacy", "createdAt"])
-        .index("by_key_user_privacy_filter_modified", ["key", "userToken", "privacy", "filterString", "lastModified"])
-        .index("by_key_user_privacy_filter_created", ["key", "userToken", "privacy", "filterString", "createdAt"])
-        .searchIndex("search_and_filter", {
-            searchField: "searchString",
-            filterFields: ["key", "filterString", "privacy"]
+        .index("by_key_privacy_sort", ["key", "privacy", "sortValue"])
+        .index("by_key_privacy_filter_sort", [
+            "key",
+            "privacy",
+            "filterValue",
+            "sortValue",
+        ])
+        .searchIndex("search_public", {
+            searchField: "searchValue",
+            filterFields: ["key", "filterValue", "privacy"],
         }),
 
     permissions: defineTable({
         varId: v.id("user_vars"),
         allowedUserId: v.string(),
     })
-    .index("by_user", ["allowedUserId"])
-    .index("by_var", ["varId"]),
-
+        .index("by_user", ["allowedUserId"])
+        .index("by_var", ["varId"]),
 });

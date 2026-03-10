@@ -1,32 +1,50 @@
 /**
  * Central configuration for the user variable system.
  *
- * - Dev warnings: control console warnings for non-ideal paths.
- * - Timeouts: default timeout for optimistic writes.
+ * This file controls:
+ * - default optimistic-write timeout behavior
+ * - whether stored config should be overwritten on normal value sets
+ * - dev warning toggles
+ *
+ * Notes:
+ * - `overwriteStoredConfigOnSet` is the important behavior switch for defaults.
+ *   When false (recommended), options like `privacy`, `filterKey`, `searchKeys`,
+ *   and `sortKey` act like "defaults on first create" and are preserved on later
+ *   value writes unless you explicitly change them with a dedicated hook/mutation.
+ * - `defaultSortKey` is used when a variable is created without an explicit
+ *   `sortKey`.
  */
 
 export const userVarConfig = {
     // === Dev Warnings ===
+
     // Master switch to enable/disable all dev warnings.
     devWarningsEnabled: true,
 
-    // Warn when a setter call isn’t confirmed by the server within the timeout window.
+    // Warn when a setter call is not confirmed by the server within the timeout.
     warnOnUserVarOpTimeout: true,
 
-    // Log when the hook automatically rolls back an optimistic value to the last confirmed server value (due to timeout).
+    // Log when an optimistic value is rolled back to the last confirmed value.
     logOnUserVarRollback: true,
 
-    // Warn when the backend falls back to in-memory sorting because the requested sort key isn’t indexed.
-    warnOnInMemoryValueSort: true,
+    // === Default Behaviors ===
 
-    // Warn when the backend filters userIds in memory after fetching a broader result set.
-    warnOnInMemoryUserIdsFilterInSearch: true,
-
-    // Warn when using SORTED search mode (scans more rows, less scalable than RELEVANCE).
-    warnOnSortedSearchMode: true,
-
-    // === Timeouts ===
-    // Default timeout (ms) for optimistic writes before rollback.
-    // Can be overridden per-hook via the timeoutMs option.
+    // Default timeout (ms) before an optimistic write is considered timed out.
     defaultTimeoutMs: 5000,
+
+    // When false (recommended), normal value writes preserve the already-stored
+    // config for privacy/filter/search/sort.
+    //
+    // Example:
+    // - First render creates the variable with privacy PUBLIC
+    // - Later renders still pass privacy PUBLIC
+    // - If the user later changed privacy through useUserVariablePrivacy,
+    //   a normal setValue(...) call will NOT overwrite that change.
+    //
+    // Set this to true only if you explicitly want useUserVariable(...) to keep
+    // re-applying the latest passed config on every write.
+    overwriteStoredConfigOnSet: false,
+
+    // Used when a new variable is created without a sortKey.
+    defaultSortKey: "PROPERTY_LAST_MODIFIED",
 } as const;

@@ -5,16 +5,12 @@ import Animated, { FadeInDown, FadeOutDown } from "react-native-reanimated";
 import { SignedIn, SignedOut, useOAuth, useClerk, useUser } from "@clerk/clerk-expo";
 import * as WebBrowser from "expo-web-browser";
 
-import { useUserVariable } from "../hooks/useUserVariable";
-import { useGlobalVariable } from "../hooks/useGlobalVariable";
-import { useSyncUserData } from "../hooks/useSyncUserData";
-import { useUserVariableGet } from "../hooks/useUserVariableGet";
-
 import AuthButton from "./components/AuthButton";
 
 import ContainerCol from "./components/ContainerCol";
 
 import BeanContainer from "./components/BeanContainer";
+import BeanPage from "./components/BeanPage";
 
 // Warm up the browser (required for Android reliability)
 export const useWarmUpBrowser = () => {
@@ -29,7 +25,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 export default function HomeScreen() {
   useWarmUpBrowser();
-  const { signOut } = useClerk();
+  
 
   // Setup OAuth Hooks for both providers
   const { startOAuthFlow: startGoogleFlow } = useOAuth({ strategy: "oauth_google" });
@@ -37,29 +33,6 @@ export default function HomeScreen() {
 
   const { user } = useUser();
 
-  interface UserData {
-    email?: string;
-    name?: string;
-    userId?: string
-  };
-
-  const [userData, setUserData] = useUserVariable<UserData>({
-    key: "userData",
-    defaultValue: {},
-    privacy: "PUBLIC",
-    searchKeys: ["name"],
-  });
-
-
-  // updates userData
-  useSyncUserData(userData.value, setUserData);
-
-  const [globalScore, setGlobalScore] = useGlobalVariable<number>("globalScore", 0);
-  const [userScore, setUserScore] = useUserVariable<number>({
-    key: "userScore",
-    defaultValue: 0,
-    privacy: "PUBLIC",
-  });
 
   // IGNORE THE FOLLOWING CODE I AM TRYING OUT A NEW WAY TO HANDLE ARRAYS
   // interface Bean {
@@ -95,16 +68,6 @@ export default function HomeScreen() {
 
   const [searchText, setSearchText] = useState("");
 
-  const [beanText, setBeanText] = useUserVariable<string>({
-    key: "beanText",
-    defaultValue: "",
-  });
-
-  const userSearchArray = useUserVariableGet<UserData>({
-    key: "userData",
-    searchFor: searchText,
-    returnTop: 10,
-  });
 
   // Keyboard listener
   // useEffect(() => {
@@ -136,7 +99,7 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-slate-900 items-center justify-center">
-      <ContainerCol className="w-full items-center absolute top-20 z-10">
+      {/* <ContainerCol className="w-full items-center absolute top-20 z-10">
         <TextInput
           className="w-[90vw] h-12 bg-gray-800 rounded-full px-4 text-white text-xl"
           placeholder="Search users..."
@@ -145,13 +108,15 @@ export default function HomeScreen() {
           onChangeText={setSearchText}
         />
 
-      </ContainerCol>
+      </ContainerCol> */}
 
 
 
       <SignedIn>
 
-        <BeanContainer numberOfBeans={0} beanText={beanText.value} setBeanText={setBeanText} />
+        {/* <BeanContainer numberOfBeans={0} beanText={beanText.value} setBeanText={setBeanText} /> */}
+
+        <BeanPage />
 
       </SignedIn>
 

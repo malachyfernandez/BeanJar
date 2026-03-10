@@ -1,82 +1,207 @@
 import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
+import type { UserVariableRecord } from "./useUserVariable";
 
-type ObjectKeys<T> = T extends object ? Extract<keyof T, string> : never;
+type PrimitiveIndexValue = string | number | boolean;
 
-export type PropertySortKey = "PROPERTY_TIME_CREATED" | "PROPERTY_LAST_MODIFIED";
-
-export type SearchMode = "RELEVANCE" | "SORTED";
-
-interface UseUserVariableGetOptions<TValue> {
+interface UseUserVariableGetOptions {
     key: string;
-    /**
-     * Full text search string.
-     * If provided, results are sorted by relevance.
-     * Searches across PUBLIC variables and variables shared with the current user.
-     */
     searchFor?: string;
-    /**
-     * Exact match filter (e.g. "Green").
-     * Requires the variable to have a `filterKey` configured.
-     * Filters across PUBLIC variables and variables shared with the current user.
-     */
-    filterFor?: string;
-    /**
-     * Array of user IDs to limit results to (e.g. friends list).
-     * Only returns variables from these users that are accessible to the current user.
-     */
+    filterFor?: PrimitiveIndexValue;
     userIds?: string[];
-    /**
-     * Max number of items to return. Default 10.
-     */
     returnTop?: number;
-    /**
-     * Sort key:
-     * - "PROPERTY_TIME_CREATED" | "PROPERTY_LAST_MODIFIED" for metadata
-     * - or a value field name (e.g. "color") to sort by that field in the stored value.
-     */
-    sortKey?: PropertySortKey | ObjectKeys<TValue>;
-
-    /**
-     * If true, includes the viewer's own PRIVATE variable for this key (if any).
-     * Server still enforces privacy; this does not expose others' private docs.
-     */
-    showAll?: boolean;
-
-    /**
-     * Search mode:
-     * - "RELEVANCE" (default): uses full-text search ranking.
-     * - "SORTED": scans a larger candidate set in sort order and filters in-memory.
-     */
-    searchMode?: SearchMode;
 }
 
 /**
- * Hook to search and retrieve public/shared variables from other users.
- * 
- * This hook respects privacy settings:
- * - PUBLIC variables: accessible to everyone
- * - PRIVATE variables: only accessible to the owner
- * - WHITELIST variables: accessible to users in the allowList
- * 
- * @example
+ * Query accessible user variables by key.
+ *
+ * This hook is the "multi-user read" companion to `useUserVariable(...)`.
+ *
+ * It returns records for the requested `key`, but only if the current viewer is
+ * allowed to see them.
+ *
+ * Access rules:
+ *
+ * - your own variable is always visible to you
+ * - PUBLIC variables are visible to everyone
+ * - whitelist variables are visible only to the owner and users in `allowList` 
+ * - PRIVATE variables are visible only to the owner
+ *
+ * -----------------------------------------------------------------------------
+ * Important mental model
+ * -----------------------------------------------------------------------------
+ *
+ * `useUserVariable(...)` is:
+ *
+ * - "my one variable for this key"
+ *
+ * `useUserVariableGet(...)` is:
+ *
+ * - "many accessible users' variables for this key"
+ *
+ * -----------------------------------------------------------------------------
+ * Search/filter behavior
+ * -----------------------------------------------------------------------------
+ *
+ * All returned records are restricted by:
+ *
+ * - `key` (required)
+ *
+ * and optionally narrowed by:
+ *
+ * - `searchFor` 
+ * - `filterFor` 
+ * - `userIds` 
+ * - `returnTop` 
+ *
+ * `searchFor` 
+ * - full-text style search against the server-derived `searchValue` 
+ *
+ * `filterFor` 
+ * - exact match against the server-derived `filterValue` 
+ *
+ * `userIds` 
+ * - restricts the result set to those users
+ * - your own variable is still included automatically if accessible
+ *
+ * `returnTop` 
+ * - maximum number of records returned
+ *
+ * -----------------------------------------------------------------------------
+ * Sorting behavior
+ * -----------------------------------------------------------------------------
+ *
+ * Records are ordered by stored `sortValue` descending.
+ * Ties fall back to `lastModified` descending.
+ *
+ * This is important:
+ *
+ * - sorting is configured when the variable is written (`sortKey`)
+ * - sorting is not chosen ad hoc on the getter
+ *
+ * If a specific screen wants a different final sort for display, it can re-sort
+ * the returned array on the frontend.
+ *
+ * -----------------------------------------------------------------------------
+ * Return shape
+ * -----------------------------------------------------------------------------
+ *
+ * Each returned item contains the full stored record shape, including:
+ *
+ * - `id` 
+ * - `_id` 
+ * - `key` 
+ * - `userToken` 
+ * - `value` 
+ * - `privacy` 
+ * - `filterKey` 
+ * - `filterValue` 
+ * - `searchKeys` 
+ * - `searchValue` 
+ * - `sortKey` 
+ * - `sortValue` 
+ * - `createdAt` 
+ * - `lastModified` 
+ *
+ * While the query is loading, the hook returns `undefined`.
+ *
+ * -----------------------------------------------------------------------------
+ * Examples
+ * -----------------------------------------------------------------------------
+ *
+ * 1. Get public/shared profiles
+ *
  * ```ts
- * // Search for public user profiles by name
- * const profiles = useUserVariableGet<UserData>("profile", {
- *   searchFor: "john",
- *   returnTop: 10
+ * const profiles = useUserVariableGet<{
+ *   username: string;
+ *   name: string;
+ * }>({
+ *   key: "profile",
+ *   returnTop: 20,
  * });
- * 
- * // Get profiles from specific users (friends list)
- * const friendProfiles = useUserVariableGet<UserData>("profile", {
- *   userIds: ["user_123", "user_456"],
- *   returnTop: 50
+ * ```
+ *
+ * 2. Search profiles by username or name
+ *
+ * ```ts
+ * const profiles = useUserVariableGet<{
+ *   username: string;
+ *   name: string;
+ * }>({
+ *   key: "profile",
+ *   searchFor: "mala",
+ *   returnTop: 20,
  * });
- * 
- * // Filter by specific criteria
- * const greenProfiles = useUserVariableGet<UserData>("profile", {
+ * ```
+ *
+ * 3. Filter beans by color
+ *
+ * ```ts
+ * const greenBeans = useUserVariableGet<{
+ *   name: string;
+ *   color: string;
+ *   rating: number;
+ * }>({
+ *   key: "favoriteBean",
  *   filterFor: "Green",
- *   returnTop: 20
+ *   returnTop: 50,
+ * });
+ * ```
+ *
+ * 4. Restrict to a friend list
+ *
+ * ```ts
+ * const friendProfiles = useUserVariableGet<{
+ *   username: string;
+ *   name: string;
+ * }>({
+ *   key: "profile",
+ *   userIds: ["user_a", "user_b", "user_c"],
+ *   returnTop: 50,
+ * });
+ * ```
+ *
+ * 5. Search within a friend list
+ *
+ * ```ts
+ * const matchingFriends = useUserVariableGet<{
+ *   username: string;
+ *   name: string;
+ * }>({
+ *   key: "profile",
+ *   userIds: ["user_a", "user_b", "user_c"],
+ *   searchFor: "alice",
+ *   returnTop: 10,
+ * });
+ * ```
+ *
+ * 6. Filter within a friend list
+ *
+ * ```ts
+ * const greenFriendBeans = useUserVariableGet<{
+ *   name: string;
+ *   color: string;
+ * }>({
+ *   key: "favoriteBean",
+ *   userIds: ["user_a", "user_b"],
+ *   filterFor: "Green",
+ *   returnTop: 10,
+ * });
+ * ```
+ *
+ * 7. Search + filter + userIds together
+ *
+ * ```ts
+ * const results = useUserVariableGet<{
+ *   username: string;
+ *   name: string;
+ *   role: string;
+ * }>({
+ *   key: "profile",
+ *   userIds: ["user_a", "user_b", "user_c"],
+ *   searchFor: "alice",
+ *   filterFor: "admin",
+ *   returnTop: 5,
  * });
  * ```
  */
@@ -86,25 +211,14 @@ export function useUserVariableGet<TValue = any>({
     filterFor,
     userIds,
     returnTop,
-    sortKey,
-    showAll,
-    searchMode,
-}: UseUserVariableGetOptions<TValue>) {
-
-    // If userIds is passed but is empty or undefined (e.g. still loading friends),
-    // we might want to pause the query or pass undefined to let the backend handle it.
-    // Here we pass it through.
-
+}: UseUserVariableGetOptions) {
     const results = useQuery(api.user_vars_get.search, {
         key,
         searchFor,
         filterFor,
         userIds,
         returnTop,
-        sortKey,
-        showAll,
-        searchMode,
     });
 
-    return results as ({ value: TValue } & { userToken: string; lastModified: number; createdAt: number })[] | undefined;
+    return results as UserVariableRecord<TValue>[] | undefined;
 }

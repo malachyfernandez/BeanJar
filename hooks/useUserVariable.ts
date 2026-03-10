@@ -6,8 +6,22 @@ import { useEffect, useRef, useState } from "react";
 import { devWarn } from "../utils/devWarnings";
 import { userVarConfig } from "../utils/userVarConfig";
 
-// Frontend privacy shape: PUBLIC, PRIVATE, or whitelist of userIds
-type Privacy = "PUBLIC" | "PRIVATE" | string[];
+type ObjectKeys<T> = T extends object ? Extract<keyof T, string> : never;
+type PrimitiveIndexValue = string | number | boolean;
+
+// Frontend privacy input shape:
+// - "PUBLIC"
+// - "PRIVATE"
+// - array of user IDs, which is converted to { allowList: [...] } on the backend
+export type Privacy = "PUBLIC" | "PRIVATE" | string[];
+
+// Stored/backend privacy output shape
+export type StoredPrivacy =
+    | "PUBLIC"
+    | "PRIVATE"
+    | { allowList: string[] };
+
+export type OptimisticTimeoutBehavior = "reset" | "keep";
 
 type SyncState = {
     isSyncing: boolean;
@@ -16,19 +30,32 @@ type SyncState = {
     lastOpTimedOutAt?: number;
 };
 
-type ObjectKeys<T> = T extends object ? Extract<keyof T, string> : never;
+export type UserVariableRecord<T> = {
+    id?: string;
+    _id?: string;
+    key?: string;
+    userToken?: string;
 
-// Rich bean value exposed to the UI
-export type UserVariableResult<T> = {
     value: T;
-    confirmedValue?: T;
+    privacy?: StoredPrivacy;
+
+    filterKey?: string;
+    filterValue?: PrimitiveIndexValue;
+
+    searchKeys?: string[];
+    searchValue?: string;
+
+    sortKey?: string;
+    sortValue?: PrimitiveIndexValue;
+
+    createdAt?: number;
     lastModified?: number;
-    timeCreated?: number;
-    userId?: string;
-    state: SyncState;
 };
 
-export type OptimisticTimeoutBehavior = "reset" | "keep";
+export type UserVariableResult<T> = UserVariableRecord<T> & {
+    confirmedValue?: T;
+    state: SyncState;
+};
 
 export type UserVarOpStatusInfo<T> = {
     key: string;
@@ -38,67 +65,449 @@ export type UserVarOpStatusInfo<T> = {
     msSinceSet: number;
 };
 
-
 /**
- * **User Variable Hook**
+ * Persistent user-scoped state that feels like `useState`, but is backed by the server.
  *
- * This acts just like `useState`, but it saves the data to the database so it persists
- * across reloads and devices.
+ * This hook gives each authenticated user exactly one variable per `key`.
+ * The variable is stored in Convex and automatically re-used across page loads,
+ * sessions, and devices.
  *
- * ---
- * ### Examples
+ * -----------------------------------------------------------------------------
+ * Core mental model
+ * -----------------------------------------------------------------------------
  *
- * **1. Simple: Reading & Writing your own data**
+ * Think of this hook as:
+ *
+ * - "my persistent state for this key"
+ *
+ * not:
+ *
+ * - "a generic document query"
+ *
+ * Each user has at most one record for a given `key`.
+ *
+ * Example:
+ *
  * ```ts
- * const [myCount, setMyCount] = useUserVariable<number>({
+ * const [profile, setProfile] = useUserVariable({
+ *   key: "profile",
+ *   defaultValue: {
+ *     username: "malachy",
+ *     name: "Malachy",
+ *   },
+ *   privacy: "PUBLIC",
+ *   searchKeys: ["username", "name"],
+ *   filterKey: "name",
+ *   sortKey: "username",
+ * });
+ * ```
+ *
+ * On first creation, the hook creates the record with the provided config.
+ * On later renders and later value writes, the existing stored config is
+ * preserved by default unless `overwriteStoredConfig` is enabled.
+ *
+ * -----------------------------------------------------------------------------
+ * Returned value
+ * -----------------------------------------------------------------------------
+ *
+ * The first tuple item is not just the raw `value`.
+ * It is a rich object containing:
+ *
+ * - `value` - the current UI value
+ * - `confirmedValue` - the last server-confirmed value
+ * - `id` / `_id` 
+ * - `key` 
+ * - `userToken` 
+ * - `privacy` 
+ * - `filterKey` 
+ * - `filterValue` 
+ * - `searchKeys` 
+ * - `searchValue` 
+ * - `sortKey` 
+ * - `sortValue` 
+ * - `createdAt` 
+ * - `lastModified` 
+ * - `state` 
+ *
+ * This means it behaves like state, but still exposes the full backing record.
+ *
+ * -----------------------------------------------------------------------------
+ * Config behavior: defaults-on-create vs overwrite-on-set
+ * -----------------------------------------------------------------------------
+ *
+ * By default, the options:
+ *
+ * - `privacy` 
+ * - `filterKey` 
+ * - `searchKeys` 
+ * - `sortKey` 
+ *
+ * are treated as "defaults used when the record is first created".
+ *
+ * That means:
+ *
+ * 1. If the variable does not exist yet, those options are used to create it.
+ * 2. If the variable already exists, normal `setValue(...)` calls keep the stored
+ *    config instead of overwriting it.
+ *
+ * This is important for cases like privacy:
+ *
+ * ```ts
+ * const [user, setUser] = useUserVariable({
+ *   key: "user",
+ *   defaultValue: { name: "Bob" },
+ *   privacy: ["user_a", "user_b"],
+ * });
+ * ```
+ *
+ * If you later update privacy explicitly with `useUserVariablePrivacy(...)`,
+ * future `setUser(...)` calls should not silently reset privacy back to the
+ * original array.
+ *
+ * Global default:
+ *
+ * - `utils/userVarConfig.ts` -> `overwriteStoredConfigOnSet` 
+ *
+ * Per-hook override:
+ *
+ * - `overwriteStoredConfig` 
+ *
+ * -----------------------------------------------------------------------------
+ * Derived server fields
+ * -----------------------------------------------------------------------------
+ *
+ * The backend computes these fields automatically:
+ *
+ * - `filterValue` 
+ * - `searchValue` 
+ * - `sortValue` 
+ *
+ * from the stored `value` and the config:
+ *
+ * - `filterKey` 
+ * - `searchKeys` 
+ * - `sortKey` 
+ *
+ * The client does NOT send `filterValue`, `searchValue`, or `sortValue`.
+ *
+ * -----------------------------------------------------------------------------
+ * Property references
+ * -----------------------------------------------------------------------------
+ *
+ * `filterKey`, `searchKeys`, and `sortKey` may refer either to:
+ *
+ * 1. a field inside `value` 
+ * 2. or a top-level record property using `PROPERTY_*` 
+ *
+ * Examples:
+ *
+ * ```ts
+ * filterKey: "color"                  // reads value.color
+ * searchKeys: ["username", "name"]    // reads value.username and value.name
+ * sortKey: "score"                    // reads value.score
+ * sortKey: "PROPERTY_LAST_MODIFIED"   // reads record.lastModified
+ * sortKey: "PROPERTY_CREATED_AT"      // reads record.createdAt
+ * ```
+ *
+ * Supported record-property references include:
+ *
+ * - `PROPERTY_ID` 
+ * - `PROPERTY__ID` 
+ * - `PROPERTY_CREATED_AT` 
+ * - `PROPERTY_TIME_CREATED` (legacy-friendly alias)
+ * - `PROPERTY_FILTER_KEY` 
+ * - `PROPERTY_FILTER_VALUE` 
+ * - `PROPERTY_KEY` 
+ * - `PROPERTY_LAST_MODIFIED` 
+ * - `PROPERTY_PRIVACY` 
+ * - `PROPERTY_SEARCH_KEYS` 
+ * - `PROPERTY_SEARCH_VALUE` 
+ * - `PROPERTY_SORT_KEY` 
+ * - `PROPERTY_SORT_VALUE` 
+ * - `PROPERTY_USER_TOKEN` 
+ * - `PROPERTY_VALUE` 
+ *
+ * Anti-recursion rule:
+ *
+ * If a config points to its own derived field, it is ignored.
+ *
+ * Examples:
+ *
+ * ```ts
+ * filterKey: "PROPERTY_FILTER_KEY"    // ignored
+ * sortKey: "PROPERTY_SORT_VALUE"      // ignored
+ * searchKeys: ["PROPERTY_SEARCH_VALUE"] // ignored
+ * ```
+ *
+ * -----------------------------------------------------------------------------
+ * Setter semantics
+ * -----------------------------------------------------------------------------
+ *
+ * The setter REPLACES the stored value.
+ * It does not merge objects.
+ *
+ * Example:
+ *
+ * ```ts
+ * const [user, setUser] = useUserVariable({
+ *   key: "user",
+ *   defaultValue: { name: "Bob", username: "bob123" },
+ * });
+ *
+ * setUser({ name: "Alice" });
+ * ```
+ *
+ * After the write, the value is:
+ *
+ * ```ts
+ * { name: "Alice" }
+ * ```
+ *
+ * `username` is gone unless you include it in the next value.
+ *
+ * -----------------------------------------------------------------------------
+ * Optimistic writes and timeouts
+ * -----------------------------------------------------------------------------
+ *
+ * Writes are optimistic.
+ *
+ * That means when you call `setValue(newValue)`, the UI updates immediately
+ * before the server confirms the mutation.
+ *
+ * The hook tracks the most recent operation with:
+ *
+ * - `state.lastOpStatus` 
+ * - `state.lastOpStartedAt` 
+ * - `state.lastOpTimedOutAt` 
+ *
+ * Possible statuses:
+ *
+ * - `"idle"` - no recent operation
+ * - `"pending"` - the optimistic write has been sent and is waiting
+ * - `"confirmed"` - the server confirmed the latest pending write
+ * - `"timed_out"` - the write was not confirmed before `timeoutMs` 
+ *
+ * `onOpStatusChange` is called whenever the latest operation changes status:
+ *
+ * - pending
+ * - confirmed
+ * - timed_out
+ *
+ * Example:
+ *
+ * ```ts
+ * const [profile, setProfile] = useUserVariable({
+ *   key: "profile",
+ *   defaultValue: { name: "Malachy" },
+ *   onOpStatusChange(info) {
+ *     console.log(info.status, info.optimisticValue, info.msSinceSet);
+ *   },
+ * });
+ * ```
+ *
+ * `info` contains:
+ *
+ * - `key` 
+ * - `status` 
+ * - `optimisticValue` 
+ * - `lastConfirmedValue` 
+ * - `msSinceSet` 
+ *
+ * -----------------------------------------------------------------------------
+ * Timeout behavior
+ * -----------------------------------------------------------------------------
+ *
+ * `timeoutMs` controls how long to wait before a pending write is considered
+ * timed out.
+ *
+ * Default:
+ *
+ * - `utils/userVarConfig.ts` -> `defaultTimeoutMs` 
+ *
+ * Per-hook override:
+ *
+ * - `timeoutMs` 
+ *
+ * `optimisticTimeoutBehavior` controls what happens if confirmation does not
+ * arrive in time.
+ *
+ * - `"reset"` (default):
+ *   - mark operation as timed out
+ *   - UI value rolls back to the last confirmed value
+ *   - if no confirmed value exists yet, it falls back to `defaultValue` 
+ *
+ * - `"keep"`:
+ *   - mark operation as timed out
+ *   - UI keeps showing the optimistic value
+ *   - useful if you want to preserve local feel even through temporary failures
+ *
+ * Examples:
+ *
+ * ```ts
+ * const [settings, setSettings] = useUserVariable({
+ *   key: "settings",
+ *   defaultValue: { darkMode: false },
+ *   timeoutMs: 8000,
+ *   optimisticTimeoutBehavior: "reset",
+ * });
+ * ```
+ *
+ * ```ts
+ * const [draft, setDraft] = useUserVariable({
+ *   key: "draft",
+ *   defaultValue: { text: "" },
+ *   timeoutMs: 10000,
+ *   optimisticTimeoutBehavior: "keep",
+ * });
+ * ```
+ *
+ * Dev warnings for timeout behavior can be adjusted in:
+ *
+ * - `utils/userVarConfig.ts` 
+ *
+ * Relevant config flags:
+ *
+ * - `devWarningsEnabled` 
+ * - `warnOnUserVarOpTimeout` 
+ * - `logOnUserVarRollback` 
+ * - `defaultTimeoutMs` 
+ * - `overwriteStoredConfigOnSet` 
+ *
+ * -----------------------------------------------------------------------------
+ * Auto-create behavior
+ * -----------------------------------------------------------------------------
+ *
+ * If the variable does not exist yet and `defaultValue` is provided, the hook
+ * automatically creates it once.
+ *
+ * Example:
+ *
+ * ```ts
+ * const [count, setCount] = useUserVariable<number>({
+ *   key: "count",
+ *   defaultValue: 0,
+ * });
+ * ```
+ *
+ * First load for that user:
+ *
+ * - no record exists
+ * - hook auto-creates `{ value: 0 }` 
+ *
+ * Later loads:
+ *
+ * - existing record is returned
+ * - no duplicate creation occurs
+ *
+ * -----------------------------------------------------------------------------
+ * Usage examples
+ * -----------------------------------------------------------------------------
+ *
+ * 1. Minimal counter
+ *
+ * ```ts
+ * const [count, setCount] = useUserVariable<number>({
  *   key: "count",
  *   defaultValue: 0,
  * });
  *
- * myCount.value
- * myCount.lastModified
- * myCount.timeCreated
- * myCount.userId
- * myCount.state.isSyncing
+ * count.value;
+ * count.confirmedValue;
+ * count.state.lastOpStatus;
  *
- * setMyCount(123);
+ * setCount(count.value + 1);
  * ```
  *
- * **2. Public profile + searchable fields**
- * ```ts
- * type UserData = { username: string; name: string };
+ * 2. Public profile searchable by username and name
  *
- * const [profile, setProfile] = useUserVariable<UserData>({
+ * ```ts
+ * type Profile = {
+ *   username: string;
+ *   name: string;
+ * };
+ *
+ * const [profile, setProfile] = useUserVariable<Profile>({
  *   key: "profile",
+ *   defaultValue: {
+ *     username: "malachy",
+ *     name: "Malachy",
+ *   },
  *   privacy: "PUBLIC",
  *   searchKeys: ["username", "name"],
+ *   sortKey: "username",
  * });
- *
- * setProfile({ username: "malachy", name: "Malachy" });
  * ```
  *
- * **3. Filterable variables**
+ * 3. Public bean filterable by color and sorted by rating
+ *
  * ```ts
- * type Bean = { name: string; description: string; color: string };
+ * type Bean = {
+ *   name: string;
+ *   color: string;
+ *   rating: number;
+ * };
  *
  * const [bean, setBean] = useUserVariable<Bean>({
- *   key: "beans",
+ *   key: "favoriteBean",
+ *   defaultValue: {
+ *     name: "Lima",
+ *     color: "Green",
+ *     rating: 10,
+ *   },
  *   privacy: "PUBLIC",
  *   filterKey: "color",
- *   searchKeys: ["name", "description"],
+ *   searchKeys: ["name", "color"],
+ *   sortKey: "rating",
  * });
  * ```
  *
- * Notes:
- * - For performance warnings (searchMode=SORTED, in-memory filtering, etc.) edit `utils/devWarningsConfig.ts`.
- * - Writes are optimistic. If a write is not confirmed by the server after `timeoutMs` (default 5000), the hook will
- *   warn and (by default) auto-reset `value` to the last confirmed server value.
+ * 4. Sort by metadata instead of value fields
  *
- * ---
- * @template T - The type of data to store (number, string, object, etc).
- * @param key - A unique name for this variable.
- * @param defaultValue - The value to use while loading or if the variable doesn't exist yet.
- * @param options - Settings for privacy, searching, filtering, and other server-backed behavior.
+ * ```ts
+ * const [post, setPost] = useUserVariable({
+ *   key: "latestPost",
+ *   defaultValue: { title: "Hello" },
+ *   privacy: "PUBLIC",
+ *   sortKey: "PROPERTY_LAST_MODIFIED",
+ * });
+ * ```
+ *
+ * 5. Whitelist privacy
+ *
+ * ```ts
+ * const [notes, setNotes] = useUserVariable({
+ *   key: "notes",
+ *   defaultValue: { text: "Secret" },
+ *   privacy: ["user_a", "user_b"],
+ * });
+ * ```
+ *
+ * 6. Preserve stored privacy after explicit privacy changes
+ *
+ * ```ts
+ * const [user, setUser] = useUserVariable({
+ *   key: "user",
+ *   defaultValue: { name: "Bob" },
+ *   privacy: ["user_a", "user_b"],
+ * });
+ *
+ * // Later, somewhere else:
+ * // setUserPrivacy(["user_a"]);
+ *
+ * // Future setUser(...) calls do not overwrite stored privacy by default.
+ * setUser({ name: "Alice" });
+ * ```
+ *
+ * 7. Force config overwrite on every write
+ *
+ * ```ts
+ * const [profile, setProfile] = useUserVariable({
+ *   key: "profile",
+ *   defaultValue: { name: "Bob" },
+ *   privacy: "PUBLIC",
+ *   overwriteStoredConfig: true,
+ * });
+ * ```
  */
 export function useUserVariable<T>({
     key,
@@ -106,34 +515,21 @@ export function useUserVariable<T>({
     privacy = "PRIVATE",
     filterKey,
     searchKeys,
-    filterString,
-    searchString,
+    sortKey,
     timeoutMs = userVarConfig.defaultTimeoutMs,
     optimisticTimeoutBehavior = "reset",
+    overwriteStoredConfig = userVarConfig.overwriteStoredConfigOnSet,
     onOpStatusChange,
 }: {
     key: string;
     defaultValue?: T;
     privacy?: Privacy;
-    filterKey?: ObjectKeys<T>;
-    searchKeys?: ObjectKeys<T>[];
-    filterString?: string;
-    searchString?: string;
-    sortKey?: "PROPERTY_LAST_MODIFIED" | "PROPERTY_TIME_CREATED";
-    /**
-     * How long (ms) to wait for a setter call to be confirmed by the server before timing out.
-     * Default 5000.
-     */
+    filterKey?: ObjectKeys<T> | string;
+    searchKeys?: (ObjectKeys<T> | string)[];
+    sortKey?: ObjectKeys<T> | string;
     timeoutMs?: number;
-    /**
-     * What to do when a write times out.
-     * - "reset" (default): auto-reset the optimistic value back to the last confirmed server value.
-     * - "keep": keep showing the optimistic value.
-     */
     optimisticTimeoutBehavior?: OptimisticTimeoutBehavior;
-    /**
-     * Called when a setter transitions to pending/confirmed/timed_out.
-     */
+    overwriteStoredConfig?: boolean;
     onOpStatusChange?: (info: UserVarOpStatusInfo<T>) => void;
 }): [UserVariableResult<T>, (newValue: T) => void] {
     const record = useQuery(api.user_vars.get, { key });
@@ -142,6 +538,7 @@ export function useUserVariable<T>({
 
     const [confirmedValue, setConfirmedValue] = useState<T | undefined>(undefined);
     const confirmedValueRef = useRef<T | undefined>(undefined);
+
     const [opState, setOpState] = useState<{
         lastOpStatus: SyncState["lastOpStatus"];
         lastOpStartedAt?: number;
@@ -155,75 +552,89 @@ export function useUserVariable<T>({
         timeoutHandle: ReturnType<typeof setTimeout> | null;
         hasTimedOut: boolean;
     } | null>(null);
+
     const opIdRef = useRef(0);
+    const didAutoCreateRef = useRef(false);
 
     const baseValue: T = isSyncing
         ? (defaultValue as T)
         : ((record?.value ?? defaultValue) as T);
 
-    const lastModified = record?.lastModified as number | undefined;
-    const timeCreated = (record as any)?.createdAt as number | undefined;
-    const userId = (record as any)?.userToken as string | undefined;
-
     useEffect(() => {
-        if (record === undefined) return;
-        if (record === null) return;
-
-        // IMPORTANT: Convex optimistic updates also update the query result.
-        // We should not treat those as "server confirmed".
-        // So we only update the confirmedValue snapshot when there is no pending write.
+        if (record === undefined || record === null) return;
         if (pendingOpRef.current) return;
 
-        const next = (record as any)?.value as T;
+        const next = record.value as T;
         confirmedValueRef.current = next;
         setConfirmedValue(next);
     }, [record]);
 
     const shouldAutoResetOnTimeout = optimisticTimeoutBehavior === "reset";
+
     const value: T =
         shouldAutoResetOnTimeout && opState.lastOpStatus === "timed_out"
             ? ((confirmedValue ?? defaultValue) as T)
             : baseValue;
 
-    // Log rollback when we actually revert the UI value
     useEffect(() => {
         if (!shouldAutoResetOnTimeout) return;
         if (opState.lastOpStatus !== "timed_out") return;
         if (!opState.lastOpTimedOutAt) return;
-        if (!confirmedValueRef.current) return;
+
         devWarn(
             "uservar_rollback",
-            `Rolled back key="${key}" to last confirmed value after timeout. ` +
-            `Optimistic value was not saved.`
+            `Rolled back key="${key}" to last confirmed value after timeout.` 
         );
-    }, [opState.lastOpStatus, opState.lastOpTimedOutAt, key, shouldAutoResetOnTimeout]);
+    }, [
+        key,
+        opState.lastOpStatus,
+        opState.lastOpTimedOutAt,
+        shouldAutoResetOnTimeout,
+    ]);
 
-    const didAutoCreateRef = useRef(false);
+    const setMutation = useMutation(api.user_vars.set).withOptimisticUpdate(
+        (localStore, args) => {
+            const existing = localStore.getQuery(api.user_vars.get, {
+                key,
+            }) as any;
 
-    const setMutation = useMutation(api.user_vars.set)
-        .withOptimisticUpdate((localStore, args) => {
-            const existing = localStore.getQuery(api.user_vars.get, { key }) as any;
             const now = Date.now();
+
             localStore.setQuery(api.user_vars.get, { key }, {
                 ...(existing ?? {}),
                 key,
                 value: args.value,
                 lastModified: now,
                 createdAt: existing?.createdAt ?? now,
-                privacy: args.privacy,
-                filterKey: args.filterKey,
-                searchKeys: args.searchKeys,
+                privacy: existing?.privacy ?? args.privacy,
+                filterKey: existing?.filterKey ?? args.filterKey,
+                searchKeys: existing?.searchKeys ?? args.searchKeys,
+                sortKey: existing?.sortKey ?? args.sortKey,
+                id: existing?.id,
+                _id: existing?._id,
+                userToken: existing?.userToken,
+                filterValue: existing?.filterValue,
+                searchValue: existing?.searchValue,
+                sortValue: existing?.sortValue,
             });
-        });
+        }
+    );
 
     const setValue = (newValue: T) => {
         const startedAt = Date.now();
         const opId = (opIdRef.current += 1);
 
         const existingPending = pendingOpRef.current;
-        if (existingPending?.timeoutHandle) clearTimeout(existingPending.timeoutHandle);
+        if (existingPending?.timeoutHandle) {
+            clearTimeout(existingPending.timeoutHandle);
+        }
 
-        setOpState({ lastOpStatus: "pending", lastOpStartedAt: startedAt, lastOpTimedOutAt: undefined });
+        setOpState({
+            lastOpStatus: "pending",
+            lastOpStartedAt: startedAt,
+            lastOpTimedOutAt: undefined,
+        });
+
         onOpStatusChange?.({
             key,
             status: "pending",
@@ -232,30 +643,29 @@ export function useUserVariable<T>({
             msSinceSet: 0,
         });
 
-        // Map frontend privacy to backend format
         const backendPrivacy = Array.isArray(privacy)
             ? { allowList: privacy }
             : privacy;
 
-        const effectiveFilterKey = filterKey ?? ((record as any)?.filterKey as string | undefined);
-        const effectiveSearchKeys = searchKeys ?? ((record as any)?.searchKeys as string[] | undefined);
-
         const timeoutHandle = setTimeout(() => {
             const pending = pendingOpRef.current;
-            if (!pending) return;
-            if (pending.id !== opId) return;
+            if (!pending || pending.id !== opId) return;
 
             const msSinceSet = Date.now() - startedAt;
+
             devWarn(
                 "uservar_op_timeout",
-                `Setter for key="${key}" has not been confirmed after ${msSinceSet}ms (timeoutMs=${timeoutMs}). ` +
-                    `ResetBehavior=${optimisticTimeoutBehavior}.`
+                `Setter for key="${key}" has not been confirmed after ${msSinceSet}ms (timeoutMs=${timeoutMs}). ResetBehavior=${optimisticTimeoutBehavior}.` 
             );
 
-            // Mark this op as timed out so we don’t re-apply it later on reconnection
             pending.hasTimedOut = true;
 
-            setOpState({ lastOpStatus: "timed_out", lastOpStartedAt: startedAt, lastOpTimedOutAt: Date.now() });
+            setOpState({
+                lastOpStatus: "timed_out",
+                lastOpStartedAt: startedAt,
+                lastOpTimedOutAt: Date.now(),
+            });
+
             onOpStatusChange?.({
                 key,
                 status: "timed_out",
@@ -263,10 +673,6 @@ export function useUserVariable<T>({
                 lastConfirmedValue: confirmedValueRef.current,
                 msSinceSet,
             });
-
-            if (optimisticTimeoutBehavior === "reset") {
-                return;
-            }
         }, timeoutMs);
 
         pendingOpRef.current = {
@@ -277,31 +683,40 @@ export function useUserVariable<T>({
             hasTimedOut: false,
         };
 
-        const p = setMutation({
+        const mutationPromise = setMutation({
             key,
             value: newValue,
             privacy: backendPrivacy,
-            filterKey: effectiveFilterKey,
-            searchKeys: effectiveSearchKeys,
-            filterString,
-            searchString,
+            filterKey,
+            searchKeys,
+            sortKey,
+            overwriteStoredConfig,
         });
 
-        Promise.resolve(p)
+        Promise.resolve(mutationPromise)
             .then(() => {
                 const pending = pendingOpRef.current;
-                if (!pending) return;
-                if (pending.id !== opId) return;
-                if (pending.timeoutHandle) clearTimeout(pending.timeoutHandle);
-                // If this operation already timed out, do NOT apply the optimistic value on reconnection
+                if (!pending || pending.id !== opId) return;
+
+                if (pending.timeoutHandle) {
+                    clearTimeout(pending.timeoutHandle);
+                }
+
                 if (pending.hasTimedOut) {
                     pendingOpRef.current = null;
                     return;
                 }
+
                 pendingOpRef.current = null;
                 confirmedValueRef.current = newValue;
                 setConfirmedValue(newValue);
-                setOpState({ lastOpStatus: "confirmed" });
+
+                setOpState({
+                    lastOpStatus: "confirmed",
+                    lastOpStartedAt: startedAt,
+                    lastOpTimedOutAt: undefined,
+                });
+
                 onOpStatusChange?.({
                     key,
                     status: "confirmed",
@@ -312,9 +727,12 @@ export function useUserVariable<T>({
             })
             .catch(() => {
                 const pending = pendingOpRef.current;
-                if (!pending) return;
-                if (pending.id !== opId) return;
-                if (pending.timeoutHandle) clearTimeout(pending.timeoutHandle);
+                if (!pending || pending.id !== opId) return;
+
+                if (pending.timeoutHandle) {
+                    clearTimeout(pending.timeoutHandle);
+                }
+
                 pendingOpRef.current = null;
             });
     };
@@ -323,6 +741,7 @@ export function useUserVariable<T>({
         if (didAutoCreateRef.current) return;
         if (record !== null) return;
         if (defaultValue === undefined) return;
+
         didAutoCreateRef.current = true;
         setValue(defaultValue as T);
     }, [record, defaultValue]);
@@ -330,25 +749,25 @@ export function useUserVariable<T>({
     useEffect(() => {
         return () => {
             const pending = pendingOpRef.current;
-            if (pending?.timeoutHandle) clearTimeout(pending.timeoutHandle);
+            if (pending?.timeoutHandle) {
+                clearTimeout(pending.timeoutHandle);
+            }
             pendingOpRef.current = null;
         };
     }, []);
 
     return [
         {
+            ...(record ?? {}),
             value,
             confirmedValue,
-            lastModified,
-            timeCreated,
-            userId,
             state: {
                 isSyncing,
                 lastOpStatus: opState.lastOpStatus,
                 lastOpStartedAt: opState.lastOpStartedAt,
                 lastOpTimedOutAt: opState.lastOpTimedOutAt,
             },
-        },
+        } as UserVariableResult<T>,
         setValue,
     ];
 }

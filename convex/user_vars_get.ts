@@ -1,405 +1,231 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
-import { devWarn } from "../utils/devWarnings";
+import { Id } from "./_generated/dataModel";
+
+type PrimitiveIndexValue = string | number | boolean;
+
+function normalizeSearch(searchFor?: string) {
+    const trimmed = searchFor?.trim();
+    return trimmed ? trimmed.toLowerCase() : undefined;
+}
+
+function matchesFilter(doc: any, filterFor?: PrimitiveIndexValue) {
+    if (filterFor === undefined) return true;
+    return doc.filterValue === filterFor;
+}
+
+function matchesSearch(doc: any, searchFor?: string) {
+    const normalized = normalizeSearch(searchFor);
+    if (!normalized) return true;
+
+    const haystack = String(doc.searchValue ?? "").toLowerCase();
+    return haystack.includes(normalized);
+}
+
+function comparePrimitiveDesc(
+    a: PrimitiveIndexValue | undefined,
+    b: PrimitiveIndexValue | undefined
+) {
+    const aMissing = a === undefined || a === null;
+    const bMissing = b === undefined || b === null;
+
+    if (aMissing && bMissing) return 0;
+    if (aMissing) return 1;
+    if (bMissing) return -1;
+
+    if (typeof a === "number" && typeof b === "number") {
+        return b - a;
+    }
+
+    if (typeof a === "boolean" && typeof b === "boolean") {
+        return Number(b) - Number(a);
+    }
+
+    return String(b).localeCompare(String(a));
+}
+
+function compareDocs(a: any, b: any) {
+    const sortCompare = comparePrimitiveDesc(a.sortValue, b.sortValue);
+    if (sortCompare !== 0) return sortCompare;
+
+    return (b.lastModified ?? 0) - (a.lastModified ?? 0);
+}
+
+function shapeRecord(record: any) {
+    return {
+        ...record,
+        id: record._id,
+    };
+}
 
 export const search = query({
     args: {
         key: v.string(),
         searchFor: v.optional(v.string()),
-        filterFor: v.optional(v.string()),
+        filterFor: v.optional(v.union(v.string(), v.number(), v.boolean())),
         userIds: v.optional(v.array(v.string())),
         returnTop: v.optional(v.number()),
-        sortKey: v.optional(v.string()),
-        showAll: v.optional(v.boolean()),
-        searchMode: v.optional(v.union(v.literal("RELEVANCE"), v.literal("SORTED"))),
     },
     handler: async (ctx, args) => {
-        const limit = args.returnTop ?? 10;
         const identity = await ctx.auth.getUserIdentity();
         const viewerUserId = identity?.subject;
-        const showAll = args.showAll ?? false;
-        const searchMode = args.searchMode ?? "RELEVANCE";
+        const limit = Math.max(1, Math.min(args.returnTop ?? 10, 200));
 
-        const sortKey = args.sortKey ?? "PROPERTY_TIME_CREATED";
+        const resultMap = new Map<string, any>();
 
-        let results: any[] = [];
+        const addIfEligible = (doc: any) => {
+            if (!doc) return;
+            if (doc.key !== args.key) return;
+            if (!matchesFilter(doc, args.filterFor)) return;
+            if (!matchesSearch(doc, args.searchFor)) return;
 
-        const sharedVarIds = viewerUserId
-            ? (await ctx.db
-                .query("permissions")
-                .withIndex("by_user", (q) => q.eq("allowedUserId", viewerUserId))
-                .collect()
-            ).map((p) => p.varId)
-            : [];
-
-        const sharedVarIdSet = new Set(sharedVarIds.map((id) => id.toString()));
-
-        const includeViewerPrivate = showAll && !!viewerUserId;
-
-        const maybeAddViewerDoc = async () => {
-            if (!includeViewerPrivate) return;
-
-            if (args.userIds && args.userIds.length > 0 && !args.userIds.includes(viewerUserId!)) {
-                return;
-            }
-
-            const viewerDoc = await ctx.db
-                .query("user_vars")
-                .withIndex("by_user_key", (q) => q.eq("userToken", viewerUserId!).eq("key", args.key))
-                .unique();
-            if (!viewerDoc) return;
-            if (args.filterFor && viewerDoc.filterString !== args.filterFor) return;
-
-            const seen = new Set(results.map((d) => d._id.toString()));
-            if (!seen.has(viewerDoc._id.toString())) {
-                results.push(viewerDoc);
-            }
+            resultMap.set(String(doc._id), doc);
         };
 
-        // Strategy 1: Full Text Search
-        // Used when 'searchFor' is present. Sorts by relevance.
-        if (args.searchFor) {
-            const normalizedSearchFor = args.searchFor.trim().toLowerCase();
+        const sharedVarIdSet = new Set<string>();
+        const sharedVarIds: Id<"user_vars">[] = [];
 
-            if (searchMode === "SORTED") {
-                const wantsCreatedSort = sortKey === "PROPERTY_TIME_CREATED";
-                const wantsModifiedSort = sortKey === "PROPERTY_LAST_MODIFIED";
-                const hasFilter = typeof args.filterFor === "string" && args.filterFor.length > 0;
-                const hasUserIds = !!args.userIds && args.userIds.length > 0;
+        if (viewerUserId) {
+            const permissions = await ctx.db
+                .query("permissions")
+                .withIndex("by_user", (q) =>
+                    q.eq("allowedUserId", viewerUserId)
+                )
+                .collect();
 
-                const maxScan = Math.min(Math.max(limit * 200, 200), 5000);
-                let scannedPublic = 0;
-                let scannedShared = 0;
+            for (const permission of permissions) {
+                sharedVarIdSet.add(String(permission.varId));
+                sharedVarIds.push(permission.varId);
+            }
+        }
 
-                // 1) Scan PUBLIC docs in the requested sort order (createdAt/lastModified only).
-                // For non-property sorts we fall back to lastModified for scan order.
-                const canIndexSort = wantsCreatedSort || wantsModifiedSort;
-                const scanOrderKey = wantsCreatedSort ? "PROPERTY_TIME_CREATED" : "PROPERTY_LAST_MODIFIED";
+        const canViewerAccess = (doc: any) => {
+            if (!doc) return false;
 
-                if (hasUserIds && canIndexSort) {
-                    // Per-user scanning: take a window per user, then filter by search substring.
-                    const perUserTake = Math.max(Math.ceil(maxScan / args.userIds!.length), limit);
-                    const publicCandidates: any[] = [];
-                    for (const uid of args.userIds!) {
-                        if (hasFilter) {
-                            const q = ctx.db.query("user_vars").withIndex(
-                                wantsCreatedSort
-                                    ? "by_key_user_privacy_filter_created"
-                                    : "by_key_user_privacy_filter_modified",
-                                (q) =>
-                                    q
-                                        .eq("key", args.key)
-                                        .eq("userToken", uid)
-                                        .eq("privacy", "PUBLIC")
-                                        .eq("filterString", args.filterFor)
-                            );
-                            const docs = await q.order("desc").take(perUserTake);
-                            scannedPublic += docs.length;
-                            publicCandidates.push(...docs);
-                        } else {
-                            const q = ctx.db.query("user_vars").withIndex(
-                                wantsCreatedSort ? "by_key_user_privacy_created" : "by_key_user_privacy_modified",
-                                (q) => q.eq("key", args.key).eq("userToken", uid).eq("privacy", "PUBLIC")
-                            );
-                            const docs = await q.order("desc").take(perUserTake);
-                            scannedPublic += docs.length;
-                            publicCandidates.push(...docs);
-                        }
-                        if (scannedPublic >= maxScan) break;
-                    }
+            if (viewerUserId && doc.userToken === viewerUserId) {
+                return true;
+            }
 
-                    results = publicCandidates.filter((doc) => {
-                        const s = (doc.searchString ?? "").toString().toLowerCase();
-                        return s.includes(normalizedSearchFor);
-                    });
-                } else {
-                    if (hasFilter && canIndexSort) {
-                        const q = ctx.db.query("user_vars").withIndex(
-                            wantsCreatedSort
-                                ? "by_key_privacy_filter_created"
-                                : "by_key_privacy_filter_modified",
-                            (q) =>
-                                q
-                                    .eq("key", args.key)
-                                    .eq("privacy", "PUBLIC")
-                                    .eq("filterString", args.filterFor)
-                        );
+            if (doc.privacy === "PUBLIC") {
+                return true;
+            }
 
-                        const candidates = await q.order("desc").take(maxScan);
-                        scannedPublic += candidates.length;
+            if (viewerUserId && sharedVarIdSet.has(String(doc._id))) {
+                return true;
+            }
 
-                        const userIdSet = hasUserIds ? new Set(args.userIds) : undefined;
-                        results = candidates.filter((doc) => {
-                            if (userIdSet && !userIdSet.has(doc.userToken)) return false;
-                            const s = (doc.searchString ?? "").toString().toLowerCase();
-                            return s.includes(normalizedSearchFor);
-                        });
-                    } else {
-                        // When we can't index-sort (value sort), scan by lastModified.
-                        const q = ctx.db.query("user_vars").withIndex(
-                            wantsCreatedSort ? "by_key_privacy_created" : "by_key_privacy_modified",
-                            (q) => q.eq("key", args.key).eq("privacy", "PUBLIC")
-                        );
+            return false;
+        };
 
-                        const candidates = await q.order("desc").take(maxScan);
-                        scannedPublic += candidates.length;
+        const requestedUserIds = args.userIds?.length
+            ? Array.from(new Set(args.userIds))
+            : undefined;
 
-                        const userIdSet = hasUserIds ? new Set(args.userIds) : undefined;
-                        results = candidates.filter((doc) => {
-                            if (userIdSet && !userIdSet.has(doc.userToken)) return false;
-                            if (hasFilter && doc.filterString !== args.filterFor) return false;
-                            const s = (doc.searchString ?? "").toString().toLowerCase();
-                            return s.includes(normalizedSearchFor);
-                        });
+        if (
+            requestedUserIds &&
+            viewerUserId &&
+            !requestedUserIds.includes(viewerUserId)
+        ) {
+            requestedUserIds.push(viewerUserId);
+        }
 
-                        if (!canIndexSort) {
-                            devWarn(
-                                "in_memory_value_sort",
-                                `useUserVariableGet: searchMode=SORTED is scanning with ${scanOrderKey} and then sorting by value field '${String(sortKey)}' in-memory. This can be expensive. scannedPublic=${scannedPublic}`
-                            );
-                        }
-                    }
-                }
-
-                if (hasUserIds && !canIndexSort) {
-                    devWarn(
-                        "in_memory_userIds_filter_in_search",
-                        `useUserVariableGet: searchMode=SORTED + userIds requires extra in-memory filtering when value-field sorting is requested. scannedPublic=${scannedPublic}, userIdsCount=${args.userIds!.length}`
-                    );
-                }
-
-                // 2) Append shared docs (whitelist) that match the substring search.
-                if (sharedVarIds.length > 0) {
-                    const sharedDocs: any[] = [];
-                    for (const id of sharedVarIds) {
-                        const doc = await ctx.db.get(id);
-                        scannedShared += 1;
-                        if (!doc) continue;
-                        if (doc.key !== args.key) continue;
-                        if (doc.privacy === "PUBLIC") continue;
-                        if (hasFilter && doc.filterString !== args.filterFor) continue;
-                        if (hasUserIds && !args.userIds!.includes(doc.userToken)) continue;
-                        const s = (doc.searchString ?? "").toString().toLowerCase();
-                        if (!s.includes(normalizedSearchFor)) continue;
-                        sharedDocs.push(doc);
-                    }
-                    results = results.concat(sharedDocs);
-                }
-
-                await maybeAddViewerDoc();
-
-                devWarn(
-                    "sorted_search_mode",
-                    `useUserVariableGet: searchMode=SORTED is not very scalable. scannedPublic=${scannedPublic}, scannedShared=${scannedShared}, key='${args.key}', sortKey='${String(sortKey)}', filterFor='${String(args.filterFor ?? "")}', userIdsCount=${args.userIds?.length ?? 0}. Consider searchMode=RELEVANCE for large datasets.`
-                );
-
-                // The final sorting/slice happens in the unified sorting block below.
-            } else {
-                // We over-fetch and then apply the requested sortKey in-memory.
-                // This keeps the API semantics consistent (sort is guaranteed),
-                // but may be less efficient than a dedicated search+sort index.
-                const searchTake = Math.min(Math.max(limit * 10, limit), 200);
-                const publicResults = await ctx.db
+        if (requestedUserIds && requestedUserIds.length > 0) {
+            for (const userId of requestedUserIds) {
+                const doc = await ctx.db
                     .query("user_vars")
-                    .withSearchIndex("search_and_filter", (q) => {
-                        let search = q.search("searchString", args.searchFor!);
-                        search = search.eq("key", args.key);
+                    .withIndex("by_user_key", (q) =>
+                        q.eq("userToken", userId).eq("key", args.key)
+                    )
+                    .unique();
 
-                        if (args.filterFor) {
-                            search = search.eq("filterString", args.filterFor);
-                        }
-                        // We only search PUBLIC items in the search index for now
-                        // to keep it fast and simple.
-                        search = search.eq("privacy", "PUBLIC");
+                if (!doc) continue;
+                if (!canViewerAccess(doc)) continue;
 
-                        return search;
-                    })
-                    .take(searchTake);
-
-                results = publicResults;
-
-                // For shared (whitelist) variables we can't efficiently apply search relevance
-                // without another search index strategy. We append accessible shared docs.
-                if (sharedVarIds.length > 0 && results.length < limit) {
-                    const sharedDocs: any[] = [];
-                    for (const id of sharedVarIds) {
-                        if (sharedDocs.length >= searchTake - results.length) break;
-                        const doc = await ctx.db.get(id);
-                        if (!doc) continue;
-                        if (doc.key !== args.key) continue;
-                        if (doc.privacy === "PUBLIC") continue;
-                        if (args.filterFor && doc.filterString !== args.filterFor) continue;
-                        if (args.userIds && args.userIds.length > 0 && !args.userIds.includes(doc.userToken)) continue;
-                        sharedDocs.push(doc);
-                    }
-
-                    // Sort shared docs by lastModified descending to keep things predictable.
-                    sharedDocs.sort((a, b) => (b.lastModified ?? 0) - (a.lastModified ?? 0));
-                    results = results.concat(sharedDocs).slice(0, searchTake);
-                }
-
-                if (args.userIds && args.userIds.length > 0) {
-                    devWarn(
-                        "in_memory_userIds_filter_in_search",
-                        `useUserVariableGet: userIds filtering during searchMode=RELEVANCE is partially in-memory (sharedDocs) and not applied to the PUBLIC search index results. userIdsCount=${args.userIds.length}`
-                    );
-                }
-
-                await maybeAddViewerDoc();
+                addIfEligible(doc);
             }
-        } 
-        // Strategy 2: Database Filter & Sort
-        // Used when NO search term is present. Sorts by lastModified.
-        else {
-            const wantsCreatedSort = sortKey === "PROPERTY_TIME_CREATED";
-            const wantsModifiedSort = sortKey === "PROPERTY_LAST_MODIFIED";
-            const isPropertySort = wantsCreatedSort || wantsModifiedSort;
 
-            const hasFilter = typeof args.filterFor === "string" && args.filterFor.length > 0;
-            const hasUserIds = !!args.userIds && args.userIds.length > 0;
+            return Array.from(resultMap.values())
+                .sort(compareDocs)
+                .slice(0, limit)
+                .map(shapeRecord);
+        }
 
-            const takeN = limit;
+        if (args.searchFor?.trim()) {
+            const publicSearchTake = Math.min(Math.max(limit * 10, 50), 500);
 
-            if (isPropertySort) {
-                if (hasUserIds) {
-                    const allowedIds = new Set(args.userIds);
-                    const perUserDocs: any[] = [];
-                    for (const uid of args.userIds!) {
-                        // Only fetch PUBLIC docs here; shared docs are handled via permissions table.
-                        if (hasFilter) {
-                            const q = ctx.db.query("user_vars").withIndex(
-                                wantsCreatedSort
-                                    ? "by_key_user_privacy_filter_created"
-                                    : "by_key_user_privacy_filter_modified",
-                                (q) =>
-                                    q
-                                        .eq("key", args.key)
-                                        .eq("userToken", uid)
-                                        .eq("privacy", "PUBLIC")
-                                        .eq("filterString", args.filterFor)
-                            );
-                            const doc = await q.order("desc").first();
-                            if (doc && allowedIds.has(doc.userToken)) {
-                                perUserDocs.push(doc);
-                            }
-                        } else {
-                            const q = ctx.db.query("user_vars").withIndex(
-                                wantsCreatedSort
-                                    ? "by_key_user_privacy_created"
-                                    : "by_key_user_privacy_modified",
-                                (q) => q.eq("key", args.key).eq("userToken", uid).eq("privacy", "PUBLIC")
-                            );
-                            const doc = await q.order("desc").first();
-                            if (doc && allowedIds.has(doc.userToken)) {
-                                perUserDocs.push(doc);
-                            }
-                        }
+            const publicDocs = await ctx.db
+                .query("user_vars")
+                .withSearchIndex("search_public", (q) => {
+                    let search = q.search("searchValue", args.searchFor!);
+                    search = search.eq("key", args.key);
+                    search = search.eq("privacy", "PUBLIC");
+
+                    if (args.filterFor !== undefined) {
+                        search = search.eq("filterValue", args.filterFor);
                     }
 
-                    results = perUserDocs;
-                } else {
-                    if (hasFilter) {
-                        const q = ctx.db.query("user_vars").withIndex(
-                            wantsCreatedSort
-                                ? "by_key_privacy_filter_created"
-                                : "by_key_privacy_filter_modified",
-                            (q) =>
-                                q
-                                    .eq("key", args.key)
-                                    .eq("privacy", "PUBLIC")
-                                    .eq("filterString", args.filterFor)
-                        );
-                        results = await q.order("desc").take(takeN);
-                    } else {
-                        const q = ctx.db.query("user_vars").withIndex(
-                            wantsCreatedSort ? "by_key_privacy_created" : "by_key_privacy_modified",
-                            (q) => q.eq("key", args.key).eq("privacy", "PUBLIC")
-                        );
-                        results = await q.order("desc").take(takeN);
-                    }
-                }
-            } else {
-                // Value-property sort: use a stable/fast index to fetch candidates, then sort in-memory.
-                let q = ctx.db.query("user_vars").withIndex("by_key_privacy_modified", (q) =>
+                    return search;
+                })
+                .take(publicSearchTake);
+
+            for (const doc of publicDocs) {
+                addIfEligible(doc);
+            }
+        } else if (args.filterFor !== undefined) {
+            const publicDocs = await ctx.db
+                .query("user_vars")
+                .withIndex("by_key_privacy_filter_sort", (q) =>
+                    q
+                        .eq("key", args.key)
+                        .eq("privacy", "PUBLIC")
+                        .eq("filterValue", args.filterFor)
+                )
+                .order("desc")
+                .take(limit);
+
+            for (const doc of publicDocs) {
+                addIfEligible(doc);
+            }
+        } else {
+            const publicDocs = await ctx.db
+                .query("user_vars")
+                .withIndex("by_key_privacy_sort", (q) =>
                     q.eq("key", args.key).eq("privacy", "PUBLIC")
-                );
-                if (hasFilter) {
-                    q = q.filter((q) => q.eq(q.field("filterString"), args.filterFor));
-                }
-                const candidates = await q.order("desc").take(Math.min(limit * 20, 200));
-                if (hasUserIds) {
-                    const allowedIds = new Set(args.userIds);
-                    results = candidates.filter((doc) => allowedIds.has(doc.userToken));
-                } else {
-                    results = candidates;
-                }
+                )
+                .order("desc")
+                .take(limit);
 
-                devWarn(
-                    "in_memory_value_sort",
-                    `useUserVariableGet: value-field sortKey='${String(sortKey)}' requires in-memory sorting after fetching candidates. candidatesFetched=${candidates.length}, key='${args.key}'`
-                );
+            for (const doc of publicDocs) {
+                addIfEligible(doc);
+            }
+        }
+
+        if (viewerUserId) {
+            const ownDoc = await ctx.db
+                .query("user_vars")
+                .withIndex("by_user_key", (q) =>
+                    q.eq("userToken", viewerUserId).eq("key", args.key)
+                )
+                .unique();
+
+            if (ownDoc) {
+                addIfEligible(ownDoc);
             }
 
-            // Append shared-with-viewer variables (whitelist) if we have room.
-            if (sharedVarIds.length > 0 && results.length < limit) {
-                const sharedDocs: any[] = [];
-                for (const id of sharedVarIds) {
-                    if (sharedDocs.length >= limit - results.length) break;
-                    const doc = await ctx.db.get(id);
+            if (sharedVarIds.length > 0) {
+                for (const sharedId of sharedVarIds) {
+                    const doc = await ctx.db.get(sharedId);
                     if (!doc) continue;
-                    if (doc.key !== args.key) continue;
-                    if (doc.privacy === "PUBLIC") continue;
-                    if (args.filterFor && doc.filterString !== args.filterFor) continue;
-                    if (args.userIds && args.userIds.length > 0 && !args.userIds.includes(doc.userToken)) continue;
-                    sharedDocs.push(doc);
-                }
+                    if (!canViewerAccess(doc)) continue;
 
-                sharedDocs.sort((a, b) => (b.lastModified ?? 0) - (a.lastModified ?? 0));
-
-                // De-dupe in case a doc is PUBLIC and already included.
-                const seen = new Set(results.map((d) => d._id.toString()));
-                for (const doc of sharedDocs) {
-                    if (results.length >= limit) break;
-                    if (seen.has(doc._id.toString())) continue;
-                    results.push(doc);
+                    addIfEligible(doc);
                 }
             }
-
-            await maybeAddViewerDoc();
         }
 
-        // Apply final in-memory sorting based on sortKey once we have a unified result list
-        if (sortKey && results.length > 1) {
-            results.sort((a, b) => {
-                if (sortKey === "PROPERTY_TIME_CREATED") {
-                    return (b.createdAt ?? 0) - (a.createdAt ?? 0);
-                }
-                if (sortKey === "PROPERTY_LAST_MODIFIED") {
-                    return (b.lastModified ?? 0) - (a.lastModified ?? 0);
-                }
-                const av = a.value?.[sortKey];
-                const bv = b.value?.[sortKey];
-
-                const aUndef = av === undefined || av === null;
-                const bUndef = bv === undefined || bv === null;
-                if (aUndef && bUndef) return 0;
-                if (aUndef) return 1;
-                if (bUndef) return -1;
-
-                if (typeof av === "number" && typeof bv === "number") {
-                    return bv - av;
-                }
-
-                return String(bv).localeCompare(String(av));
-            });
-        }
-
-        results = results.slice(0, limit);
-
-        // Map to the clean structure expected by the frontend
-        // We return the whole document structure so the client can use .value, .lastModified, etc.
-        return results.map((doc) => ({
-            ...doc,
-        }));
+        return Array.from(resultMap.values())
+            .sort(compareDocs)
+            .slice(0, limit)
+            .map(shapeRecord);
     },
 });
