@@ -1,117 +1,361 @@
-# The “Client-Side Backend” Idea: User Variables
+# BeanJar Development Guide
 
-## Core Vision
+This guide covers the two data systems in BeanJar: **useUserVariable** (single values) and **useUserList** (multiple items).
 
-Imagine you could write a React component **as if it were local state**, but under the hood it’s a **real-time, cloud-persisted, searchable, and socially-aware data store**—without writing a single line of backend code.
+---
 
-You don’t create tables, API endpoints, or manage complex database indexes manually. You just declare your intent in the frontend:
+## 🏗️ Architecture Overview
 
-```tsx
-const [profile, setProfile] = useUserVariable({
+Both systems are built on Convex with optimistic UI updates, privacy controls, and real-time sync.
+
+### Key Concepts
+- **User-scoped**: All data belongs to authenticated users
+- **Optimistic UI**: Updates appear instantly, rollback on failure
+- **Privacy-first**: Everything is private until explicitly shared
+- **Real-time**: Changes sync across all connected clients
+
+---
+
+## 🔧 useUserVariable System (Single Values)
+
+Perfect for: User settings, profiles, preferences, single records
+
+### Core Hooks
+
+#### `useUserVariable<T>(options)`
+Main hook for user-scoped variables.
+
+```typescript
+const [profile, setProfile] = useUserVariable<ProfileType>({
   key: "profile",
-  defaultValue: { name: "Alice", bio: "Loves beans", rank: 1 },
+  defaultValue: { name: "", bio: "" },
   privacy: "PUBLIC",
   searchKeys: ["name", "bio"],
   filterKey: "name",
-  sortKey: "rank",
+  sortKey: "name"
 });
 ```
 
-The system automatically:
-- **Persists** data to the cloud instantly.
-- **Syncs** state across all of the user's devices in real-time.
-- **Indexes** for search, filtering, and sorting based on your config.
-- **Enforces** permissions (Public, Private, or Whitelist).
-- **Derives** query values on the server to ensure data integrity and trust.
+**Features:**
+- Uniqueness: `userToken + key`
+- Auto-creates if `defaultValue` provided
+- Optimistic updates with timeout handling
+- Privacy: `"PUBLIC"`, `"PRIVATE"`, `string[]` (whitelist)
 
----
+#### `useUserVariableGet<T>(options)`
+Read multiple users' variables.
 
-## Why This Is Powerful
-
-### 1. Zero Backend Boilerplate
-Normally, a "profile" feature requires a database schema, `GET/PATCH` endpoints, search indexes, and permission logic. With User Variables, the backend infrastructure is generated dynamically based on your frontend declaration.
-
-### 2. Real-Time, Persistent State
-`useState` is local and resets on refresh. `useUserVariable` survives page reloads and syncs across devices, providing a "confirmed" server value alongside the "optimistic" UI value for a lag-free experience.
-
-### 3. Built-In Social Logic
-Privacy is a first-class citizen. You don't manually check "can User A see User B's record?" You just define the rule:
-- `privacy: "PUBLIC"`: Everyone can read.
-- `privacy: "PRIVATE"`: Only the owner.
-- `privacy: ["userId1", "userId2"]`: Explicit whitelist access.
-
-### 4. Advanced Querying Without SQL
-To build a social feed or directory, you use a simple hook:
-```tsx
-const results = useUserVariableGet({
+```typescript
+const profiles = useUserVariableGet<ProfileType>({
   key: "profile",
-  searchFor: "Alice", // Full-text search
-  filterFor: "Bob",   // Exact match
-  userIds: friends,   // Restrict to a list of users
+  searchFor: "john",
+  filterFor: "active",
+  userIds: ["user1", "user2"],
+  returnTop: 20,
+  startAfter: "lastRecordId" // pagination
 });
 ```
-The system handles the complex joining of public data and whitelist permissions automatically.
 
----
+**Features:**
+- Multi-user access with privacy enforcement
+- Search, filter, and pagination support
+- Returns array of accessible records
 
-## The “Magic” Under the Hood
+#### `useUserVariablePrivacy()`
+Update privacy for variables.
 
-### 1. Server-Derived Query Values (The Trust Layer)
-To prevent "index poisoning" (where a client lies about what their data contains to show up in wrong searches), the backend is the sole source of truth.
-- You provide the **Keys** (e.g., `filterKey: "color"`).
-- The server computes the **Values** (e.g., `filterValue: "Green"`).
-This ensures that search results, filters, and sorts are always honest and consistent with the actual data.
+```typescript
+const setPrivacy = useUserVariablePrivacy();
 
-### 2. Sort-on-Write Architecture
-Unlike typical systems that sort data at "read time" (which is slow), this system uses a **Sort-on-Write** model. You define a `sortKey` (like "rank" or "lastModified"), and the system pre-calculates a `sortValue`. This makes global feeds and sorted lists lightning-fast.
+// Make profile public
+setPrivacy({ 
+  key: "profile", 
+  privacy: "PUBLIC" 
+});
 
-### 3. Property References (`PROPERTY_*`)
-You aren't limited to sorting/filtering by fields inside your data. You can reference record metadata:
-- `sortKey: "PROPERTY_LAST_MODIFIED"`: Sort by most recently updated.
-- `sortKey: "PROPERTY_CREATED_AT"`: Sort by oldest/newest records.
-
-### 4. Scalable Whitelisting
-Whitelists are handled via a high-performance `permissions` join table. Finding "every variable shared with me" is a direct index lookup, allowing the system to scale to millions of users without performance degradation.
-
----
-
-## Developer Experience
-
-### 1. The Full Record Return
-The hook doesn't just return the value; it returns the full persisted record.
-```tsx
-const [user] = useUserVariable({ key: "user" });
-
-user.value;          // Your data
-user.id;             // The unique database ID
-user.lastModified;   // Timestamp
-user.privacy;        // Current access level
-user.state;          // { isSyncing, lastOpStatus }
+// Share with specific users
+setPrivacy({ 
+  key: "profile", 
+  privacy: ["user1", "user2"] 
+});
 ```
 
-### 2. Replace Semantics
-To keep logic simple and predictable, setters use **Replace Semantics**. When you `setProfile({ name: "Alice" })`, the entire value is replaced. No partial merges, no confusing "ghost" properties.
+---
 
-### 3. Configuration Persistence
-By default, configuration like `privacy` or `searchKeys` acts as a "default-on-create." If you change a variable's privacy to a specific whitelist using the `useUserVariablePrivacy` hook, the system **remembers** that. Future value updates won't accidentally overwrite your privacy settings back to the initial defaults.
+## 📋 useUserList System (Multiple Items)
 
-### 4. Optimistic UI & Timeouts
-The system is built for the "intermittent web." 
-- **Optimistic Updates**: The UI updates before the server responds.
-- **Rollback Logic**: If a write fails or times out (default 5s), the hook can automatically roll back to the last "confirmed" value, ensuring the user never thinks data is saved when it isn't.
+Perfect for: Posts, inventory, bookmarks, comments, any collection
+
+### Core Hooks
+
+#### `useUserList<T>(options)`
+Main hook for individual list items.
+
+```typescript
+const [post, setPost] = useUserList<PostType>({
+  key: "posts",
+  itemId: "post_123",
+  defaultValue: { title: "", body: "", rank: 0 },
+  privacy: "PUBLIC",
+  searchKeys: ["title", "body", "PROPERTY_ITEMID"],
+  filterKey: "title", 
+  sortKey: "rank"
+});
+```
+
+**Key Features:**
+- Uniqueness: `userToken + key + itemId`
+- **PROPERTY_ITEMID**: Special property for item ID in search/filter/sort
+- List-level privacy (all items share same privacy)
+- Auto-creates if `defaultValue` provided
+
+#### `useUserListGet<T>(options)`
+Read multiple list items.
+
+```typescript
+// Get all posts
+const posts = useUserListGet<PostType>({
+  key: "posts",
+  returnTop: 20
+});
+
+// Get specific item
+const post = useUserListGet<PostType>({
+  key: "posts",
+  itemId: "post_123"
+});
+
+// Search and paginate
+const searchResults = useUserListGet<PostType>({
+  key: "posts",
+  searchFor: "react",
+  filterFor: "published",
+  returnTop: 10,
+  startAfter: "lastRecordId"
+});
+```
+
+**Features:**
+- Exact lookup with `itemId`
+- Multi-item search with pagination
+- Supports `PROPERTY_ITEMID` in search/filter/sort
+
+#### `useUserListSet<T>()`
+Upsert items without hook instantiation.
+
+```typescript
+const setPost = useUserListSet<PostType>();
+
+// Create new post
+setPost({
+  key: "posts",
+  itemId: "post_456",
+  value: { title: "New Post", body: "Content" },
+  privacy: "PUBLIC",
+  searchKeys: ["title", "body"]
+});
+```
+
+#### `useUserListPrivacy()`
+Update privacy for entire lists.
+
+```typescript
+const setListPrivacy = useUserListPrivacy();
+
+// Make all posts public
+setListPrivacy({ 
+  key: "posts", 
+  privacy: "PUBLIC" 
+});
+```
+
+#### `useUserListRemove()`
+Delete individual list items.
+
+```typescript
+const removePost = useUserListRemove();
+
+removePost({ 
+  key: "posts", 
+  itemId: "post_123" 
+});
+```
 
 ---
 
-## What This Enables
+## 🔗 How Systems Work Together
 
-- **Instant Prototyping**: Add persistent, searchable state in seconds.
-- **Social Apps**: Build profiles, inventories, and shared lists without a backend dev.
-- **Real-Time Dashboards**: Sync settings and status across multiple screens instantly.
-- **Privacy-First Tools**: Everything is private until you explicitly make it public or share it.
+### Profile + Posts Example
+```typescript
+// User's single profile
+const [profile, setProfile] = useUserVariable({
+  key: "profile",
+  defaultValue: { name: "", avatar: "" },
+  privacy: "PUBLIC"
+});
+
+// User's multiple posts
+const [post, setPost] = useUserList({
+  key: "posts", 
+  itemId: "post_123",
+  defaultValue: { title: "", body: "" },
+  privacy: "PUBLIC"
+});
+
+// Get all posts from all users
+const allPosts = useUserListGet({
+  key: "posts",
+  returnTop: 50
+});
+
+// Update profile privacy
+const setPrivacy = useUserVariablePrivacy();
+setPrivacy({ key: "profile", privacy: "PUBLIC" });
+```
+
+### Settings + Data Example
+```typescript
+// User preferences (single)
+const [settings, setSettings] = useUserVariable({
+  key: "settings",
+  defaultValue: { theme: "dark", notifications: true },
+  privacy: "PRIVATE"
+});
+
+// User's bookmarks (list)
+const bookmarks = useUserListGet({
+  key: "bookmarks",
+  returnTop: 100
+});
+
+// Add new bookmark
+const addBookmark = useUserListSet();
+addBookmark({
+  key: "bookmarks",
+  itemId: `bookmark_${Date.now()}`,
+  value: { url: "https://example.com", title: "Example" }
+});
+```
 
 ---
 
-## TL;DR
+## 🎯 Choosing the Right System
 
-User Variables provide **"useState for the Cloud."** 
-You focus on the UI and product logic; the framework handles the persistence, real-time sync, full-text search, permissions, and database indexing.
+| Use Case | System | Why |
+|-----------|---------|------|
+| User profile/settings | `useUserVariable` | Single value per user |
+| Blog posts | `useUserList` | Multiple posts, need individual items |
+| Shopping list | `useUserList` | Collection of items |
+| App preferences | `useUserVariable` | Single settings object |
+| Comments | `useUserList` | Multiple comments per post |
+| User status | `useUserVariable` | Single status value |
+| Inventory | `useUserList` | Multiple items with properties |
+
+---
+
+## 🚀 Quick Start Patterns
+
+### 1. Basic Profile
+```typescript
+const [profile, setProfile] = useUserVariable({
+  key: "profile",
+  defaultValue: { name: "User", bio: "" }
+});
+```
+
+### 2. Simple List
+```typescript
+const [item, setItem] = useUserList({
+  key: "todos",
+  itemId: "todo_1", 
+  defaultValue: { text: "Learn hooks", done: false }
+});
+```
+
+### 3. Multi-Item Query
+```typescript
+const items = useUserListGet({
+  key: "todos",
+  returnTop: 10
+});
+```
+
+### 4. Privacy Control
+```typescript
+const setPrivacy = useUserVariablePrivacy();
+setPrivacy({ key: "profile", privacy: "PUBLIC" });
+```
+
+---
+
+## 📱 React Native Integration
+
+All hooks work seamlessly with React Native components:
+
+```typescript
+import React from 'react';
+import { View, TouchableOpacity, Text } from 'react-native';
+import { useUserVariable } from '../hooks/useUserVariable';
+import { useUserList } from '../hooks/useUserList';
+
+export default function MyComponent() {
+  const [profile, setProfile] = useUserVariable({
+    key: "profile",
+    defaultValue: { name: "" }
+  });
+
+  const [post, setPost] = useUserList({
+    key: "posts",
+    itemId: "main",
+    defaultValue: { title: "", body: "" }
+  });
+
+  return (
+    <View>
+      <TouchableOpacity onPress={() => setProfile({ name: "New Name" })}>
+        <Text>Update Profile</Text>
+      </TouchableOpacity>
+      
+      <TouchableOpacity onPress={() => setPost({ title: "New Title", body: "New Content" })}>
+        <Text>Update Post</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+```
+
+---
+
+## 🔒 Privacy Model
+
+### Privacy Levels
+- **`"PRIVATE"`**: Only owner can access
+- **`"PUBLIC"`**: Anyone can access  
+- **`string[]`**: Whitelist - only specified users can access
+
+### Privacy Inheritance
+- **useUserVariable**: Privacy per variable
+- **useUserList**: Privacy per list (all items inherit list privacy)
+
+### Access Control
+All queries automatically enforce:
+1. Owner always has access
+2. Public items accessible to everyone
+3. Whitelist items accessible to allowed users only
+
+---
+
+## 🎯 TL;DR
+
+**User Variables provide "useState for the Cloud."** 
+You focus on UI and product logic; the framework handles persistence, real-time sync, full-text search, permissions, and database indexing.
+
+**Two systems solve different problems:**
+- **useUserVariable**: Single values (profile, settings, status)
+- **useUserList**: Multiple items (posts, inventory, bookmarks)
+
+**Both work together seamlessly** - choose based on your data structure needs.
+
+---
+
+This is everything you need to build with BeanJar's data systems. Start with the basic patterns and expand as needed!
