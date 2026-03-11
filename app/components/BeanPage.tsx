@@ -73,9 +73,7 @@ const BeanPage = ({
         returnTop: 3,
     });
 
-    const FreindListChange = useUserVariablePrivacy({
-        key: "listItems",
-    });
+    const changeVariablePrivacy = useUserVariablePrivacy();
 
 
     return (
@@ -91,11 +89,21 @@ const BeanPage = ({
             
             <ContainerCol>
                 {/* remove freind button */}
-                <TouchableOpacity className='border-slate-700 border p-3 rounded w-48 items-center hover:bg-slate-600' onPress={() => FreindListChange("PRIVATE")}>
+                <TouchableOpacity className='border-slate-700 border p-3 rounded w-48 items-center hover:bg-slate-600' onPress={() =>
+                    changeVariablePrivacy({
+                        key: "listItems",
+                        privacy: "PRIVATE",
+                    })
+                }>
                     <PoppinsText>Remove Freind</PoppinsText>
                 </TouchableOpacity>
                 {/* add friend button */}
-                <TouchableOpacity className='border-slate-700 border p-3 rounded w-48 items-center hover:bg-slate-600' onPress={() => FreindListChange(freinds)}>
+                <TouchableOpacity className='border-slate-700 border p-3 rounded w-48 items-center hover:bg-slate-600' onPress={() =>
+                    changeVariablePrivacy({
+                        key: "listItems",
+                        privacy: freinds,
+                    })
+                }>
                     <PoppinsText>Add Freind</PoppinsText>
                 </TouchableOpacity>
 

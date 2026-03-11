@@ -5,11 +5,12 @@ import type { UserVariableRecord } from "./useUserVariable";
 type PrimitiveIndexValue = string | number | boolean;
 
 interface UseUserVariableGetOptions {
-    key: string;
-    searchFor?: string;
-    filterFor?: PrimitiveIndexValue;
-    userIds?: string[];
-    returnTop?: number;
+  key: string;
+  searchFor?: string;
+  filterFor?: PrimitiveIndexValue;
+  userIds?: string[];
+  returnTop?: number;
+  startAfter?: string;
 }
 
 /**
@@ -206,19 +207,21 @@ interface UseUserVariableGetOptions {
  * ```
  */
 export function useUserVariableGet<TValue = any>({
+  key,
+  searchFor,
+  filterFor,
+  userIds,
+  returnTop,
+  startAfter,
+}: UseUserVariableGetOptions) {
+  const results = useQuery(api.user_vars_get.search, {
     key,
     searchFor,
     filterFor,
     userIds,
     returnTop,
-}: UseUserVariableGetOptions) {
-    const results = useQuery(api.user_vars_get.search, {
-        key,
-        searchFor,
-        filterFor,
-        userIds,
-        returnTop,
-    });
+    startAfter,
+  });
 
-    return results as UserVariableRecord<TValue>[] | undefined;
+  return results as UserVariableRecord<TValue>[] | undefined;
 }
