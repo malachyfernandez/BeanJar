@@ -24,8 +24,8 @@ const AppButton = ({
     const [isPressed, setIsPressed] = useState(false);
 
     const getButtonStyles = (): string => {
-        // ADDED: overflow-hidden (clips the blur to the radius)
-        const baseStyles = 'h-16 flex items-center justify-center rounded-[15px] flex-row gap-2 overflow-hidden';
+        
+        const baseStyles = 'h-10 flex items-center justify-center rounded flex-row gap-2 overflow-hidden hover:brightness-75';
         
         if (variant === 'outline') {
             const bg = isPressed ? 'bg-[#0a0d1a]' : 'bg-[#0f1627bf]';
@@ -53,13 +53,9 @@ const AppButton = ({
     const needsBlur = variant === 'grey' || variant === 'outline';
 
     return (
-        /* OUTER VIEW: Handles Shadow + Layout
-           - Removed 'overflow-hidden' (so shadow is visible)
-           - Added 'rounded-[15px]' (so shadow matches shape)
-           - Applied shadowStyle here
-        */
+        
         <View 
-            className={`rounded-[15px]`} 
+            // className={`rounded-sm`} 
             style={dropShadow ? shadowStyle : undefined}
         >
             <TouchableOpacity
@@ -74,11 +70,11 @@ const AppButton = ({
                     <BlurView 
                         intensity={50} 
                         tint="dark" 
-                        // Removed rounded-[15px] here (Parent clips it now)
+                        
                         className="absolute inset-0" 
                     />
                 )}
-                <View className="z-10 flex-row items-center justify-center gap-2">
+                <View className="z-10 flex-row items-center justify-center gap-2 ">
                     {children}
                 </View>
             </TouchableOpacity>

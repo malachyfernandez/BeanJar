@@ -5,11 +5,10 @@ import Animated, { FadeInDown, FadeOutDown } from "react-native-reanimated";
 import { SignedIn, SignedOut, useOAuth, useClerk, useUser } from "@clerk/clerk-expo";
 import * as WebBrowser from "expo-web-browser";
 
-import AuthButton from "./components/AuthButton";
+import AuthButton from "./components/ui/AuthButton";
 
-import ContainerCol from "./components/ContainerCol";
+import ContainerCol from "./components/layout/ContainerCol";
 
-import BeanContainer from "./components/BeanContainer";
 import BeanPage from "./components/BeanPage";
 
 // Warm up the browser (required for Android reliability)
