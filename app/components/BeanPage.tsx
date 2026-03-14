@@ -19,6 +19,7 @@ import FindFriends from './sections/FindFriends';
 import MyFriends from './sections/MyFriends';
 import Feed from './sections/Feed';
 import AddPost from './sections/AddPost';
+import NavButton from './ui/NavButton';
 
 type FontWeight = 'regular' | 'medium' | 'bold';
 
@@ -90,42 +91,10 @@ const BeanPage = ({
                 </AppButton>
 
                 <ContainerRow className='w-full justify-between'>
-                    <AppButton variant="grey" className="w-20%" onPress={() => setPageState("Profile")}>
-                        
-                        {pageState === "Profile" ? (
-                            <PoppinsText weight='bold'>Profile</PoppinsText>
-                        ) : (
-                            <PoppinsText>Profile</PoppinsText>
-                        )}
-
-                    </AppButton>
-                    <AppButton variant="grey" className="w-20%" onPress={() => setPageState("Find friends")}>
-                        {pageState === "Find friends" ? (
-                            <PoppinsText weight='bold'>Find friends</PoppinsText>
-                        ) : (
-                            <PoppinsText>Find friends</PoppinsText>
-                        )}
-
-                    </AppButton>
-
-                    <AppButton variant="grey" className="w-20%" onPress={() => setPageState("Friends")}>
-                        {pageState === "Friends" ? (
-                            <PoppinsText weight='bold'>Friends</PoppinsText>
-                        ) : (
-                            <PoppinsText>Friends</PoppinsText>
-                        )}
-
-                    </AppButton>
-
-                    <AppButton variant="grey" className="w-20%" onPress={() => setPageState("Feed")}>
-
-                        {pageState === "Feed" ? (
-                            <PoppinsText weight='bold'>Feed</PoppinsText>
-                        ) : (
-                            <PoppinsText>Feed</PoppinsText>
-                        )}
-
-                    </AppButton>
+                    <NavButton buttonID="Profile" pageState={pageState} setPageState={setPageState} />
+                    <NavButton buttonID="Find friends" pageState={pageState} setPageState={setPageState} />
+                    <NavButton buttonID="Friends" pageState={pageState} setPageState={setPageState} />
+                    <NavButton buttonID="Feed" pageState={pageState} setPageState={setPageState} />
                 </ContainerRow>
 
 
