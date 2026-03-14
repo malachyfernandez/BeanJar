@@ -13,20 +13,30 @@ const FriendListItem = ({ friend }: FriendListItemProps) => {
         key: "userData",
         userIds: [friend],
     });
+
+    const email = friendData?.[0]?.value.email;
+    const userId = friendData?.[0]?.value.userId;
+    const name = friendData?.[0]?.value.name;
+
+
     return (
         <ContainerCol gap={1}>
-            <ContainerRow>
-                <PoppinsText weight='bold'>from hook:</PoppinsText>
-                <PoppinsText>{friendData?.[0]?.value.email}</PoppinsText>
-            </ContainerRow>
-            <ContainerRow>
-                <PoppinsText weight='bold'>from hook:</PoppinsText>
-                <PoppinsText>{friendData?.[0]?.value.userId}</PoppinsText>
-            </ContainerRow>
-            <ContainerRow>
-                <PoppinsText weight='bold'>from props:</PoppinsText>
-                <PoppinsText>{friend}</PoppinsText>
-            </ContainerRow>
+            {email && (
+                <ContainerRow>
+                    <PoppinsText weight='bold'>{email}</PoppinsText>
+                </ContainerRow>
+            )}
+            {name && (
+                <ContainerRow>
+                    <PoppinsText>{name}</PoppinsText>
+                </ContainerRow>
+            )}
+            {userId && (
+                <ContainerRow>
+                    <PoppinsText className='text-sm opacity-50'>{`User ID: ${userId}`}</PoppinsText>
+                </ContainerRow>
+            )}
+            
         </ContainerCol>
     );
 };
