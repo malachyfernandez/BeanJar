@@ -2,8 +2,8 @@ import React from 'react';
 import PoppinsText from '../ui/PoppinsText';
 import { useUserListSet } from 'hooks/useUserListSet';
 import { useUserListGet } from 'hooks/useUserListGet';
-import Post from './Post';
 import ContainerCol from '../layout/ContainerCol';
+import PostList from './PostList';
 
 interface MyProfileProps {
     currentUserID: string;
@@ -20,12 +20,7 @@ const MyProfile = ({ currentUserID }: MyProfileProps) => {
     return (
         <ContainerCol gap={2}>
             <PoppinsText>My Profile</PoppinsText>
-
-            {posts?.map((post, index) => (
-
-                <Post key={index} title={post?.value.title} description={post?.value.description} />
-
-            ))}
+            <PostList posts={posts} />
         </ContainerCol>
     );
 };
