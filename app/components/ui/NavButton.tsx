@@ -3,7 +3,7 @@ import React from 'react';
 import AppButton from './AppButton';
 import PoppinsText from './PoppinsText';
 
-type PageState = "Profile" | "Friends" | "Feed";
+type PageState = "Profile" | "Following" | "Feed";
 
 interface NavButtonProps {
     buttonID: PageState;

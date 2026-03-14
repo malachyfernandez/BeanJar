@@ -5,10 +5,10 @@ import { View } from 'react-native';
 import ContainerCol from '../layout/ContainerCol';
 import PostList from './PostList';
 
-const Feed = ({ friendsList }: { friendsList: string[] }) => {
+const Feed = ({ followingList }: { followingList: string[] }) => {
     const posts = useUserListGet({
         key: "posts",
-        userIds: friendsList,
+        userIds: followingList,
     });
     
     return (

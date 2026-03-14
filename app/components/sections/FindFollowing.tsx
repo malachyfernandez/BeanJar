@@ -5,17 +5,18 @@ import PoppinsText from '../ui/PoppinsText';
 import PoppinsTextInput from '../ui/PoppinsTextInput';
 import SearchResults from '../SearchResults';
 
-interface FindFriendsProps {
+interface FindFollowingProps {
     currentUserId: string;
-    addFriend: (friend: any) => void;
+    addFollowing: (friend: any) => void;
+    followingList: string[];
 }
 
-const FindFriends = ({ currentUserId, addFriend }: FindFriendsProps) => {
+const FindFollowing = ({ currentUserId, addFollowing, followingList }: FindFollowingProps) => {
     const [searchQuery, setSearchQuery] = useState("");
 
     return (
         <>
-            <PoppinsText>Find Friends</PoppinsText>
+            <PoppinsText>Find Following</PoppinsText>
 
             <ContainerRow>
                 
@@ -24,7 +25,7 @@ const FindFriends = ({ currentUserId, addFriend }: FindFriendsProps) => {
                     className='flex-shrink w-full h-10 border border-slate-700 rounded-lg p-2'
                     value={searchQuery}
                     onChangeText={setSearchQuery}
-                    placeholder='Search for friends'
+                    placeholder='Search for following'
                 />
                 <AppButton variant="grey" className="w-20" onPress={() => {}}>
                     <PoppinsText>Search</PoppinsText>
@@ -32,9 +33,9 @@ const FindFriends = ({ currentUserId, addFriend }: FindFriendsProps) => {
                 
             </ContainerRow>
 
-            <SearchResults query={searchQuery} currentUserId={currentUserId} addFriend={addFriend} />
+            <SearchResults query={searchQuery} currentUserId={currentUserId} addFollowing={addFollowing} followingList={followingList} />
         </>
     );
 };
 
-export default FindFriends;
+export default FindFollowing;

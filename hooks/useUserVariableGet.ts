@@ -19,7 +19,7 @@ interface UseUserVariableGetOptions {
  * ```ts
  * const profiles = useUserVariableGet<Profile>({
  *   key: "profile", // REQUIRED: var key
- *   userIds: friendsList, // owner ids only
+ *   userIds: followingList, // owner ids only
  *   searchFor: "mala", // text query
  *   filterFor: "admin", // exact filter value
  *   returnTop: 20, // page size

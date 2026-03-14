@@ -20,7 +20,7 @@ interface UseUserListGetOptions {
  * ```ts
  * const posts = useUserListGet<Post>({
  *   key: "posts", // REQUIRED: list key
- *   userIds: friendsList, // owner ids only
+ *   userIds: followingList, // owner ids only
  *   filterFor: "published", // exact filter value
  *   returnTop: 20, // page size
  * });

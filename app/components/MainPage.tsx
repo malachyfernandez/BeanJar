@@ -15,8 +15,8 @@ import { useUserListSet } from 'hooks/useUserListSet';
 import { useUserListGet } from 'hooks/useUserListGet';
 import PoppinsTextInput from './ui/PoppinsTextInput';
 import MyProfile from './sections/MyProfile';
-import FindFriends from './sections/FindFriends';
-import MyFriends from './sections/MyFriends';
+import FindFollowing from './sections/FindFollowing';
+import Following from './sections/Following';
 import Feed from './sections/Feed';
 import AddPost from './sections/AddPost';
 import NavButton from './ui/NavButton';
@@ -52,24 +52,24 @@ const MainPage = ({
 
     const { signOut } = useClerk();
 
-    const [friendsList, setFriendsList] = useUserVariable<string[]>({
-        key: "friendsList",
+    const [followingList, setFollowingList] = useUserVariable<string[]>({
+        key: "followingList",
         defaultValue: [],
     })
 
-    const addFriend = (friend: any) => {
+    const addFollowing = (friend: any) => {
         if (!friend?.userId) {
             return;
         }
 
-        setFriendsList([...(friendsList.value || []), friend.userId])
+        setFollowingList([...(followingList.value || []), friend.userId])
     }
 
 
     const currentUserID = (userData?.value.userId || "LOADING...")
     const currentUserEmail = (userData?.value.email || "LOADING...")
 
-    type PageState = "Profile" | "Friends" | "Feed";
+    type PageState = "Profile" | "Following" | "Feed";
 
     const [pageState, setPageState] = useState<PageState>("Profile");
 
@@ -87,7 +87,7 @@ const MainPage = ({
 
                 <ContainerRow className='w-full justify-between'>
                     <NavButton buttonID="Profile" pageState={pageState} setPageState={setPageState} />
-                    <NavButton buttonID="Friends" pageState={pageState} setPageState={setPageState} />
+                    <NavButton buttonID="Following" pageState={pageState} setPageState={setPageState} />
                     <NavButton buttonID="Feed" pageState={pageState} setPageState={setPageState} />
                 </ContainerRow>
 
@@ -95,9 +95,9 @@ const MainPage = ({
 
                 {pageState === "Profile" && <MyProfile currentUserID={currentUserID} />}
 
-                {pageState === "Friends" && <MyFriends friendsList={friendsList.value || []} currentUserId={currentUserID} addFriend={addFriend} />}
+                {pageState === "Following" && <Following followingList={followingList.value || []} currentUserId={currentUserID} addFollowing={addFollowing} />}
 
-                {pageState === "Feed" && <Feed friendsList={friendsList.value || []} />}
+                {pageState === "Feed" && <Feed followingList={followingList.value || []} />}
 
             </ContainerCol>
 
