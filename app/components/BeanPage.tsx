@@ -91,25 +91,39 @@ const BeanPage = ({
 
                 <ContainerRow className='w-full justify-between'>
                     <AppButton variant="grey" className="w-20%" onPress={() => setPageState("Profile")}>
-
-                        <PoppinsText>Profile</PoppinsText>
+                        
+                        {pageState === "Profile" ? (
+                            <PoppinsText weight='bold'>Profile</PoppinsText>
+                        ) : (
+                            <PoppinsText>Profile</PoppinsText>
+                        )}
 
                     </AppButton>
                     <AppButton variant="grey" className="w-20%" onPress={() => setPageState("Find friends")}>
-
-                        <PoppinsText>Find friends</PoppinsText>
+                        {pageState === "Find friends" ? (
+                            <PoppinsText weight='bold'>Find friends</PoppinsText>
+                        ) : (
+                            <PoppinsText>Find friends</PoppinsText>
+                        )}
 
                     </AppButton>
 
                     <AppButton variant="grey" className="w-20%" onPress={() => setPageState("Friends")}>
-
-                        <PoppinsText>Friends</PoppinsText>
+                        {pageState === "Friends" ? (
+                            <PoppinsText weight='bold'>Friends</PoppinsText>
+                        ) : (
+                            <PoppinsText>Friends</PoppinsText>
+                        )}
 
                     </AppButton>
 
                     <AppButton variant="grey" className="w-20%" onPress={() => setPageState("Feed")}>
 
-                        <PoppinsText>Feed</PoppinsText>
+                        {pageState === "Feed" ? (
+                            <PoppinsText weight='bold'>Feed</PoppinsText>
+                        ) : (
+                            <PoppinsText>Feed</PoppinsText>
+                        )}
 
                     </AppButton>
                 </ContainerRow>
