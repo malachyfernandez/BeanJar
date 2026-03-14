@@ -11,11 +11,13 @@ import NameFromUserID from '../ui/NameFromUserID';
 import { useUserListSet } from 'hooks/useUserListSet';
 import { useUserListGet } from 'hooks/useUserListGet';
 import prettyLog from '../../../utils/prettyLog';
+import { useUserVariableGet } from 'hooks/useUserVariableGet';
 
 interface PostProps {
     title: string;
     description: string;
     postId: string;
+    posterID: string;
 }
 
 interface Comment {
@@ -23,7 +25,7 @@ interface Comment {
     postIdItsTiedTo: string;
 }
 
-const Post = ({ title, description, postId }: PostProps) => {
+const Post = ({ title, description, postId, posterID }: PostProps) => {
     // use state for text input
     const [comment, setComment] = useState('');
 
@@ -55,8 +57,19 @@ const Post = ({ title, description, postId }: PostProps) => {
 
     prettyLog(commentsOnActivePost, 'Comments on Active Post');
 
+    const safePosterId = posterID || '';
+    
+    const userDatas = useUserVariableGet({
+        key: "userData",
+        userIds: [safePosterId],
+    });
+
+    const email = userDatas?.[0]?.value?.email;
+
     return (
         <ContainerCol gap={1} className='p-4 bg-slate-800'>
+            <PoppinsText className='text-sm opacity-50'>{email || 'Loading...'}</PoppinsText>
+
             <PoppinsText weight='bold'>{title}</PoppinsText>
             <PoppinsText>{description}</PoppinsText>
 
@@ -75,8 +88,8 @@ const Post = ({ title, description, postId }: PostProps) => {
                 </ContainerRow>
                 {/* comments list */}
                 {commentsOnActivePost?.map((comment) => {
-                    const text = comment.value.text;
-                    const userId = comment.userToken;
+                    const text = comment.value.text ?? '';
+                    const userId = comment.userToken ?? '';
 
                     return (
                         <ContainerCol key={comment.itemId} gap={0}>

@@ -12,12 +12,14 @@ const PostList = ({ posts }: PostListProps) => {
                 const title = post?.value?.title ?? '';
                 const description = post?.value?.description ?? '';
                 const postId = post?.itemId ?? '';
+                const userId = post?.userToken ?? '';
                 return (
                     <Post
                         key={index}
                         title={title}
                         description={description}
                         postId={postId}
+                        posterID={userId}
                     />
                 );
             })}
