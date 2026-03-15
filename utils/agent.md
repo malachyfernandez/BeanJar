@@ -25,7 +25,8 @@ const [profile, setProfile] = useUserVariable<Profile>({
   filterKey: "username", // exact filter key
   searchKeys: ["username", "name"], // text index keys
   sortKey: "PROPERTY_LAST_MODIFIED", // result order key
-  overwriteStoredConfig: false, // keep saved config
+  overwriteStoredConfig: true, // default: keep filter/search/sort synced
+  overwriteStoredPrivacy: false, // default: keep privacy sticky
   onOpStatusChange: (info) => {}, // op status callback
 });
 ```
@@ -49,7 +50,8 @@ const [post, setPost] = useUserList<Post>({
   filterKey: "status", // exact filter key
   searchKeys: ["title", "body"], // text index keys
   sortKey: "PROPERTY_LAST_MODIFIED", // result order key
-  overwriteStoredConfig: false, // keep saved config
+  overwriteStoredConfig: true, // default: keep filter/search/sort synced
+  overwriteStoredPrivacy: false, // default: keep privacy sticky
   onOpStatusChange: (info) => {}, // op status callback
 });
 ```
@@ -118,19 +120,22 @@ Output:
 
 ### `useUserListLength`
 
-Exact accessible list-item count for one `key + filterFor`.
+Exact accessible list-item count for one `key + filterFor`, with optional `itemId`.
 
 ```ts
 const totalComments = useUserListLength({
   key: "comments", // REQUIRED: list key
   filterFor: postId, // REQUIRED: exact filter value
+  itemId: "comment_123", // OPTIONAL: exact item id
 });
 ```
 
 Output:
 - exact count or `undefined` while loading
 - constant-time count path
-- only supports `key + filterFor`
+- with `itemId`, counts exact `key + filterFor + itemId`
+- without `itemId`, counts exact `key + filterFor`
+- dev warning logs for shared `itemId` count shapes unless disabled in config
 
 ### `useUserListSet`
 
@@ -147,7 +152,8 @@ setPost({
   filterKey: "status", // exact filter key
   searchKeys: ["title", "body"], // text index keys
   sortKey: "PROPERTY_LAST_MODIFIED", // result order key
-  overwriteStoredConfig: false, // keep saved config
+  overwriteStoredConfig: true, // default: keep filter/search/sort synced
+  overwriteStoredPrivacy: false, // default: keep privacy sticky
 });
 ```
 
@@ -216,7 +222,8 @@ Output:
 ## Config defaults (`utils/userVarConfig.ts`)
 
 - `defaultTimeoutMs`: optimistic timeout default.
-- `overwriteStoredConfigOnSet`: whether value writes re-apply config.
+- `overwriteStoredConfigOnSet`: whether normal writes re-apply filter/search/sort.
+- `overwriteStoredPrivacyOnSet`: whether normal writes re-apply privacy.
 - `defaultSortKey`: fallback sort key when omitted.
 - dev warning toggles:
   - `devWarningsEnabled`
@@ -228,5 +235,5 @@ Output:
 - `userIds` in get hooks is an explicit filter. If provided, only those users are queried.
 - For old local data, ensure friend/user lists are normalized to user-id strings.
 - `filterValue` / `searchValue` / `sortValue` are computed server-side from config + value.
-- exact fast counts are only available through the dedicated `Length` hooks for `key + filterFor`
+- exact fast counts are available through the dedicated `Length` hooks for `key + filterFor`, and `useUserListLength` also supports optional exact `itemId`
 

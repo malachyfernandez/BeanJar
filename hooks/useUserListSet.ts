@@ -32,7 +32,7 @@ type ObjectKeys<T> = T extends object ? Extract<keyof T, string> : never;
  * - all items in the same `key` share that config
  * - server derives `filterValue`, `searchValue`, and `sortValue`
  *
- * `overwriteStoredConfig` example:
+ * Config sync example:
  *
  * ```ts
  * const setPost = useUserListSet<Post>();
@@ -45,14 +45,16 @@ type ObjectKeys<T> = T extends object ? Extract<keyof T, string> : never;
  *   filterKey: "status",
  *   searchKeys: ["title", "body"],
  *   sortKey: "status",
- *   overwriteStoredConfig: true,
+ *   overwriteStoredConfig: true, // default: keep filter/search/sort synced
+ *   overwriteStoredPrivacy: false, // default: keep privacy sticky
  * });
  * ```
  *
- * `overwriteStoredConfig` notes:
- * - default behavior keeps the already stored list config
- * - set `overwriteStoredConfig: true` when you intentionally want to replace that config
- * - use this sparingly because it affects every item in the same list key
+ * Config sync notes:
+ * - `overwriteStoredConfig` covers filter/search/sort only (defaults to `true`)
+ * - `overwriteStoredPrivacy` covers privacy only (defaults to `false`)
+ * - toggling either controls whether normal writes re-apply props vs. preserve stored values
+ * - use with care because it updates the shared list definition for that key
  */
 export function useUserListSet<T = any>() {
   const mutation = useMutation(api.user_lists.set);
@@ -66,6 +68,7 @@ export function useUserListSet<T = any>() {
     searchKeys,
     sortKey,
     overwriteStoredConfig,
+    overwriteStoredPrivacy,
   }: {
     key: string;
     itemId: string;
@@ -75,6 +78,7 @@ export function useUserListSet<T = any>() {
     searchKeys?: (ObjectKeys<T> | string)[];
     sortKey?: ObjectKeys<T> | string;
     overwriteStoredConfig?: boolean;
+    overwriteStoredPrivacy?: boolean;
   }) => {
     const backendPrivacy = Array.isArray(privacy)
       ? { allowList: privacy }
@@ -89,6 +93,7 @@ export function useUserListSet<T = any>() {
       searchKeys,
       sortKey,
       overwriteStoredConfig,
+      overwriteStoredPrivacy,
     });
   };
 }

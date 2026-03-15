@@ -171,7 +171,7 @@ export type UserVarOpStatusInfo<T> = {
  * // result: { name: "Alice" }
  * ```
  *
- * `overwriteStoredConfig` example:
+ * Config sync example:
  *
  * ```ts
  * const [profile, setProfile] = useUserVariable<Profile>({
@@ -179,14 +179,16 @@ export type UserVarOpStatusInfo<T> = {
  *   defaultValue: { name: "", username: "" },
  *   privacy: "PRIVATE",
  *   filterKey: "username",
- *   overwriteStoredConfig: true,
+ *   overwriteStoredConfig: true, // default: keep filter/search/sort synced
+ *   overwriteStoredPrivacy: false, // default: keep privacy sticky
  * });
  * ```
  *
- * `overwriteStoredConfig` notes:
- * - default behavior keeps the already stored config on later writes
- * - use `overwriteStoredConfig: true` only when you intentionally want normal writes to replace stored config
- * - the global default lives in `utils/userVarConfig.ts`
+ * Config sync notes:
+ * - `overwriteStoredConfig` covers filter/search/sort only (defaults to `true`)
+ * - `overwriteStoredPrivacy` covers privacy only (defaults to `false`)
+ * - toggle them when you want normal value writes to re-apply incoming props
+ * - global defaults live in `utils/userVarConfig.ts`
  *
  * Timeout example:
  *
@@ -221,6 +223,7 @@ export function useUserVariable<T>({
     timeoutMs = userVarConfig.defaultTimeoutMs,
     optimisticTimeoutBehavior = "reset",
     overwriteStoredConfig = userVarConfig.overwriteStoredConfigOnSet,
+    overwriteStoredPrivacy = userVarConfig.overwriteStoredPrivacyOnSet,
     onOpStatusChange,
 }: {
     key: string;
@@ -232,6 +235,7 @@ export function useUserVariable<T>({
     timeoutMs?: number;
     optimisticTimeoutBehavior?: OptimisticTimeoutBehavior;
     overwriteStoredConfig?: boolean;
+    overwriteStoredPrivacy?: boolean;
     onOpStatusChange?: (info: UserVarOpStatusInfo<T>) => void;
 }): [UserVariableResult<T>, (newValue: T) => void] {
     const record = useQuery(api.user_vars.get, { key });
@@ -393,6 +397,7 @@ export function useUserVariable<T>({
             searchKeys,
             sortKey,
             overwriteStoredConfig,
+            overwriteStoredPrivacy,
         });
 
         Promise.resolve(mutationPromise)

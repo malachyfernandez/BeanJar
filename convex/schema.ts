@@ -191,23 +191,26 @@ export default defineSchema({
   user_list_public_counts: defineTable({
     key: v.string(),
     filterValue: v.optional(primitiveIndexValue),
+    itemId: v.optional(v.string()),
     count: v.number(),
-  }).index("by_key_filter", ["key", "filterValue"]),
+  }).index("by_key_filter_item", ["key", "filterValue", "itemId"]),
 
   user_list_owner_counts: defineTable({
     ownerUserToken: v.string(),
     key: v.string(),
     filterValue: v.optional(primitiveIndexValue),
+    itemId: v.optional(v.string()),
     accessScope: v.union(
       v.literal("PUBLIC"),
       v.literal("PRIVATE"),
       v.literal("SHARED")
     ),
     count: v.number(),
-  }).index("by_owner_key_filter_scope", [
+  }).index("by_owner_key_filter_item_scope", [
     "ownerUserToken",
     "key",
     "filterValue",
+    "itemId",
     "accessScope",
   ]),
 
@@ -215,6 +218,12 @@ export default defineSchema({
     allowedUserId: v.string(),
     key: v.string(),
     filterValue: v.optional(primitiveIndexValue),
+    itemId: v.optional(v.string()),
     count: v.number(),
-  }).index("by_user_key_filter", ["allowedUserId", "key", "filterValue"]),
+  }).index("by_user_key_filter_item", [
+    "allowedUserId",
+    "key",
+    "filterValue",
+    "itemId",
+  ]),
 });

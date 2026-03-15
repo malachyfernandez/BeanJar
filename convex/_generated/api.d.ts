@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as devUtils from "../devUtils.js";
 import type * as globals from "../globals.js";
 import type * as migrations from "../migrations.js";
 import type * as user_lists from "../user_lists.js";
@@ -22,6 +23,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  devUtils: typeof devUtils;
   globals: typeof globals;
   migrations: typeof migrations;
   user_lists: typeof user_lists;

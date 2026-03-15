@@ -157,7 +157,7 @@ export type UserListOpStatusInfo<T> = {
  * - `setValue(...)` replaces the stored item value
  * - it does not merge objects
  *
- * `overwriteStoredConfig` example:
+ * Config sync example:
  *
  * ```ts
  * const [post, setPost] = useUserList<Post>({
@@ -167,14 +167,16 @@ export type UserListOpStatusInfo<T> = {
  *   privacy: "PRIVATE",
  *   filterKey: "status",
  *   searchKeys: ["title", "body"],
- *   overwriteStoredConfig: true,
+ *   overwriteStoredConfig: true, // default: keep filter/search/sort synced
+ *   overwriteStoredPrivacy: false, // default: keep privacy sticky
  * });
  * ```
  *
- * `overwriteStoredConfig` notes:
- * - default behavior keeps the already stored list config
- * - use `overwriteStoredConfig: true` only when you intentionally want normal writes to replace list config
- * - this affects the shared list definition, not just one item
+ * Config sync notes:
+ * - `overwriteStoredConfig` covers filter/search/sort only (defaults to `true`)
+ * - `overwriteStoredPrivacy` covers privacy only (defaults to `false`)
+ * - toggling either controls whether normal writes re-apply props vs. preserve stored values
+ * - this still affects the shared list definition (all items for that key)
  *
  * Timeout example:
  *
@@ -211,6 +213,7 @@ export function useUserList<T>({
   timeoutMs = userVarConfig.defaultTimeoutMs,
   optimisticTimeoutBehavior = "reset",
   overwriteStoredConfig = userVarConfig.overwriteStoredConfigOnSet,
+  overwriteStoredPrivacy = userVarConfig.overwriteStoredPrivacyOnSet,
   onOpStatusChange,
 }: {
   key: string;
@@ -223,6 +226,7 @@ export function useUserList<T>({
   timeoutMs?: number;
   optimisticTimeoutBehavior?: OptimisticTimeoutBehavior;
   overwriteStoredConfig?: boolean;
+  overwriteStoredPrivacy?: boolean;
   onOpStatusChange?: (info: UserListOpStatusInfo<T>) => void;
 }): [UserListResult<T>, (newValue: T) => void] {
   const record = useQuery(api.user_lists.get, { key, itemId });
@@ -391,6 +395,7 @@ export function useUserList<T>({
       searchKeys,
       sortKey,
       overwriteStoredConfig,
+      overwriteStoredPrivacy,
     });
 
     Promise.resolve(mutationPromise)

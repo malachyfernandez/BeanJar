@@ -574,6 +574,7 @@ export const set = mutation({
         sortKey: v.optional(v.string()),
 
         overwriteStoredConfig: v.optional(v.boolean()),
+        overwriteStoredPrivacy: v.optional(v.boolean()),
     },
 
     handler: async (ctx, args) => {
@@ -599,9 +600,10 @@ export const set = mutation({
         const now = Date.now();
         const createdAt = existing?.createdAt ?? now;
         const overwriteStoredConfig = args.overwriteStoredConfig ?? false;
+        const overwriteStoredPrivacy = args.overwriteStoredPrivacy ?? false;
 
         const nextPrivacy = normalizePrivacy(
-            overwriteStoredConfig
+            overwriteStoredPrivacy
                 ? (args.privacy ?? existing?.privacy ?? "PRIVATE")
                 : (existing?.privacy ?? args.privacy ?? "PRIVATE")
         );
